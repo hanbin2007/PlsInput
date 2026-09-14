@@ -13,3 +13,6 @@ Package.resolved
 
 # Local outputs
 /out/
+
+# Claude worktrees
+.claude/worktrees/
