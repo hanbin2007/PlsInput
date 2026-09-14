@@ -159,7 +159,7 @@ public struct BalanceParams: Hashable, Codable, Sendable {
         digitKeys: 3...4,
         opKeys: 1...2,
         keyDurability: 6...15,
-        totalDurability: 60...100,
+        totalDurability: 45...80,
         rotInterval: 2.5...4.0,
         thresholds: ["1e3", "1e6", "1e12", "1e30", "1e100", "10^10^3", "10^10^6", "10^10^10", "10^10^100", "10^^4"],
         rewardWeights: ["unlockKey": 30, "addSlot": 30, "convertSlot": 15, "repair": 15, "freeze": 10],
