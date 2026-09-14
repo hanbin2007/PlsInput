@@ -1,0 +1,15 @@
+# Xcode / SwiftPM
+.build/
+DerivedData/
+*.xcodeproj
+!App/project.yml
+xcuserdata/
+*.xcuserstate
+.swiftpm/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# Local outputs
+/out/
