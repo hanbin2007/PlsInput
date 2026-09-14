@@ -2,9 +2,13 @@ import SwiftUI
 
 @main
 struct PlsInputApp: App {
+    @State private var app = AppModel()
+
     var body: some Scene {
         WindowGroup {
-            Text("PlsInput")
+            HomeView()
+                .environment(app)
+                .task { await app.bootstrap() }
         }
     }
 }

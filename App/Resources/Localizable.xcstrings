@@ -1,0 +1,866 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%lld day streak": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连续 %lld 天"
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于"
+          }
+        }
+      }
+    },
+    "All rewards claimed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "道具已拿完"
+          }
+        }
+      }
+    },
+    "All time": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "总榜"
+          }
+        }
+      }
+    },
+    "Amp": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增幅格"
+          }
+        }
+      }
+    },
+    "Bag is empty": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背包是空的"
+          }
+        }
+      }
+    },
+    "Bag is full. Tap a key to repair it now (+%lld).": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背包满了。点一个键立即修理（+%lld）。"
+          }
+        }
+      }
+    },
+    "Best: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最高：%@"
+          }
+        }
+      }
+    },
+    "Board": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "榜单"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "Choose the new slot's type.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择新格子的类型。"
+          }
+        }
+      }
+    },
+    "Come back tomorrow for a new puzzle.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "明天再来，有新题。"
+          }
+        }
+      }
+    },
+    "Config": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配置"
+          }
+        }
+      }
+    },
+    "Continue": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续"
+          }
+        }
+      }
+    },
+    "Convert a slot to %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把一个格子改成%@。"
+          }
+        }
+      }
+    },
+    "Couldn't load the leaderboard.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排行榜加载失败。"
+          }
+        }
+      }
+    },
+    "Daily puzzle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每日题"
+          }
+        }
+      }
+    },
+    "Digits count double: 9 becomes 18.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数字按两倍计：9 当 18。"
+          }
+        }
+      }
+    },
+    "Digits rot at normal speed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数字按正常速度腐烂。"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "Echo": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回声格"
+          }
+        }
+      }
+    },
+    "End": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束"
+          }
+        }
+      }
+    },
+    "End this run?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束这一局？"
+          }
+        }
+      }
+    },
+    "Ended by": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束原因"
+          }
+        }
+      }
+    },
+    "Freeze %llds": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冻结 %lld 秒"
+          }
+        }
+      }
+    },
+    "Freeze %llds added to your bag.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冻结 %lld 秒已放进背包。"
+          }
+        }
+      }
+    },
+    "Friends only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只看好友"
+          }
+        }
+      }
+    },
+    "Game Center": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game Center"
+          }
+        }
+      }
+    },
+    "Haptics": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "震动反馈"
+          }
+        }
+      }
+    },
+    "Keys worn out": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "键全报废"
+          }
+        }
+      }
+    },
+    "Leaderboard": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排行榜"
+          }
+        }
+      }
+    },
+    "Long-press a slot to clear it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长按格子可清空。"
+          }
+        }
+      }
+    },
+    "Mirrors the slot two to its left. Free, can't be filled directly.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制左边第二格的内容。免费，但不能直接填。"
+          }
+        }
+      }
+    },
+    "Never rots.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永不腐烂。"
+          }
+        }
+      }
+    },
+    "New key unlocked: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解锁新键：%@"
+          }
+        }
+      }
+    },
+    "New slot! Choose its type": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新格子！选一种类型"
+          }
+        }
+      }
+    },
+    "New slot! Pick a type and where to put it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新格子！选类型和位置。"
+          }
+        }
+      }
+    },
+    "Next reward at": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一个道具在"
+          }
+        }
+      }
+    },
+    "No scores yet.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有分数。"
+          }
+        }
+      }
+    },
+    "Normal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "普通格"
+          }
+        }
+      }
+    },
+    "Not ranked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未进榜"
+          }
+        }
+      }
+    },
+    "Not signed in": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未登录"
+          }
+        }
+      }
+    },
+    "One attempt per day. Everyone gets the same keyboard.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每天一次机会，所有人同一个键盘。"
+          }
+        }
+      }
+    },
+    "Peak": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "峰值"
+          }
+        }
+      }
+    },
+    "Play today's puzzle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始今天的题"
+          }
+        }
+      }
+    },
+    "PlsInput": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入"
+          }
+        }
+      }
+    },
+    "PlsInput %@ · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入 %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "PlsInput %@ · %@ · #%lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入 %1$@ · %2$@ · 第 %3$lld 名"
+          }
+        }
+      }
+    },
+    "PlsInput practice · %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入 练习 · %@"
+          }
+        }
+      }
+    },
+    "Practice": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习"
+          }
+        }
+      }
+    },
+    "Practice result": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "练习成绩"
+          }
+        }
+      }
+    },
+    "Random puzzles, unlimited tries, no ranking.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "随机题，不限次数，不计排名。"
+          }
+        }
+      }
+    },
+    "Rank": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排名"
+          }
+        }
+      }
+    },
+    "Repair +%lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修键 +%lld"
+          }
+        }
+      }
+    },
+    "Repair kit +%lld added to your bag.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修键 +%lld 已放进背包。"
+          }
+        }
+      }
+    },
+    "Retry": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        }
+      }
+    },
+    "Rewards claimed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拿到道具"
+          }
+        }
+      }
+    },
+    "Rewards claimed: %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拿到道具：%lld 个"
+          }
+        }
+      }
+    },
+    "Rot is paused while you choose.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择期间不腐烂。"
+          }
+        }
+      }
+    },
+    "Rots twice as fast, but filling it costs no durability.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "腐烂两倍速，但填它不耗耐久。"
+          }
+        }
+      }
+    },
+    "Rotten": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "烂格"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置"
+          }
+        }
+      }
+    },
+    "Share": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享"
+          }
+        }
+      }
+    },
+    "Sign in": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录"
+          }
+        }
+      }
+    },
+    "Sign in to Game Center to rank": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录 Game Center 才能进榜"
+          }
+        }
+      }
+    },
+    "Sign in to Game Center to see rankings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登录 Game Center 才能看排名。"
+          }
+        }
+      }
+    },
+    "Signed in": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已登录"
+          }
+        }
+      }
+    },
+    "Slot selected. Press a key to overwrite it, or tap it again to deselect.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选中格子。按键覆盖它，或再点一次取消。"
+          }
+        }
+      }
+    },
+    "Slots are full. Tap a slot, then press a key to overwrite it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格子满了。点一个格子，再按键覆盖它。"
+          }
+        }
+      }
+    },
+    "Stable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "稳定格"
+          }
+        }
+      }
+    },
+    "Status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态"
+          }
+        }
+      }
+    },
+    "Submitted": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已提交"
+          }
+        }
+      }
+    },
+    "Submitting…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "提交中…"
+          }
+        }
+      }
+    },
+    "Tap a gap to place the %@ slot.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一个缝隙放入%@。"
+          }
+        }
+      }
+    },
+    "Tap a key to repair it.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一个键来修理它。"
+          }
+        }
+      }
+    },
+    "Tap a slot to convert it to %@.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "点一个格子把它改成%@。"
+          }
+        }
+      }
+    },
+    "This version is too old for today's puzzle. Please update the app.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前版本太旧，无法玩今天的题，请更新应用。"
+          }
+        }
+      }
+    },
+    "Time": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用时"
+          }
+        }
+      }
+    },
+    "Time limit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "时间到"
+          }
+        }
+      }
+    },
+    "Today": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今天"
+          }
+        }
+      }
+    },
+    "Today's result": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日成绩"
+          }
+        }
+      }
+    },
+    "Type the biggest number you can.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入一个尽可能大的数。"
+          }
+        }
+      }
+    },
+    "Version": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
+          }
+        }
+      }
+    },
+    "You": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你"
+          }
+        }
+      }
+    },
+    "You ended it": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主动结束"
+          }
+        }
+      }
+    },
+    "Your peak so far becomes your score.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前的峰值就是你的分数。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

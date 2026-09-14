@@ -1,0 +1,23 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "CFBundleDisplayName": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PlsInput"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
