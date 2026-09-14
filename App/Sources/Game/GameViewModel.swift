@@ -222,7 +222,12 @@ final class GameViewModel {
             case .newPeak:
                 peakPulse += 1
             case .thresholdCrossed(_, let reward):
-                showToast(Self.text(for: reward))
+                switch reward {
+                case .addSlot, .convertSlot:
+                    break // 交互提示会说明，不再弹 toast
+                default:
+                    showToast(Self.text(for: reward))
+                }
                 haptic(.success)
             case .keyDied:
                 haptic(.warning)

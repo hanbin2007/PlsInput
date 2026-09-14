@@ -156,9 +156,9 @@ final class AppModel {
 
     // MARK: - 练习模式
 
-    func startPractice() {
+    func startPractice(seed fixedSeed: String? = nil) {
         var rng = SystemRandomNumberGenerator()
-        let seed = PuzzleSeed.practice(using: &rng)
+        let seed = fixedSeed ?? PuzzleSeed.practice(using: &rng)
         let puzzle = PuzzleGenerator.generate(seed: seed, balance: resolver.balance(for: currentDay))
         let model = GameViewModel(mode: .practice, state: RunState(puzzle: puzzle))
         model.hapticsEnabled = settings.hapticsEnabled

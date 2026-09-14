@@ -371,6 +371,16 @@
         }
       }
     },
+    "Next at %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下一档 %@"
+          }
+        }
+      }
+    },
     "Next reward at": {
       "localizations": {
         "zh-Hans": {
@@ -557,6 +567,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "重试"
+          }
+        }
+      }
+    },
+    "Rewards %lld / %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "道具 %1$lld / %2$lld"
           }
         }
       }

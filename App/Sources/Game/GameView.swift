@@ -28,6 +28,8 @@ struct GameView: View {
                 SlotRowView(model: model)
                 InteractionHint(model: model)
                 InventoryBar(model: model)
+                ThresholdLadder(model: model)
+                    .padding(.top, 4)
                 Spacer(minLength: 0)
                 KeyboardView(model: model)
             }
@@ -123,7 +125,7 @@ struct DisplayPanel: View {
     var body: some View {
         VStack(spacing: 6) {
             Text(model.displayText)
-                .font(.system(size: 46, weight: .semibold, design: .rounded))
+                .font(.system(size: 50, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .minimumScaleFactor(0.3)
                 .lineLimit(1)
@@ -141,7 +143,7 @@ struct DisplayPanel: View {
                     .minimumScaleFactor(0.5)
             }
         }
-        .padding(.vertical, 18)
+        .padding(.vertical, 24)
         .padding(.horizontal, 14)
         .background(
             RoundedRectangle(cornerRadius: 16)
@@ -183,7 +185,7 @@ struct SlotRowView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(height: 72)
+        .frame(height: 78)
     }
 
     @ViewBuilder
@@ -195,11 +197,11 @@ struct SlotRowView: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.title3)
                     .foregroundStyle(Palette.accent)
-                    .frame(width: 26, height: 60)
+                    .frame(width: 26, height: 66)
             }
             .buttonStyle(.plain)
         } else {
-            Color.clear.frame(width: 0, height: 60)
+            Color.clear.frame(width: 0, height: 66)
         }
     }
 }
@@ -227,7 +229,7 @@ struct SlotTile: View {
                         .strokeBorder(border, style: StrokeStyle(lineWidth: selected ? 2.5 : 1.5, dash: slot.kind == .echo ? [4, 3] : []))
                 )
             Text(text ?? "")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .font(.system(size: 27, weight: .bold, design: .rounded))
                 .foregroundStyle(text.flatMap(Int.init) == nil ? Palette.text : Palette.digitColor(digitValue))
                 .opacity(slot.kind == .echo ? 0.75 : 1)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -253,7 +255,7 @@ struct SlotTile: View {
                 }
             }
         }
-        .frame(width: 48, height: 60)
+        .frame(width: 54, height: 66)
         .contentShape(Rectangle())
         .onTapGesture { model.tapSlot(index) }
         .onLongPressGesture(minimumDuration: 0.45) { model.longPressSlot(index) }
@@ -357,7 +359,9 @@ struct KeyboardView: View {
     }
 
     var body: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
+        let count = model.state.keys.count
+        let columnCount = count <= 4 ? max(count, 1) : (count <= 6 ? 3 : 4)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(model.state.keys.indices, id: \.self) { index in
                 KeyCap(
@@ -396,7 +400,7 @@ struct KeyCap: View {
                     .foregroundStyle(key.uses <= 2 ? Palette.danger : Palette.dim)
                     .padding(6)
             }
-            .frame(height: 58)
+            .frame(height: 72)
         }
         .buttonStyle(KeyCapButtonStyle())
         .disabled(!enabled)
@@ -471,5 +475,61 @@ struct ToastView: View {
             .padding(.vertical, 9)
             .background(Capsule().fill(Palette.accent))
             .padding(.horizontal, 24)
+    }
+}
+
+
+/// 十档阈值的进度条：已拿的实心，下一档高亮并标出数值，未到的暗。
+struct ThresholdLadder: View {
+    var model: GameViewModel
+
+    var body: some View {
+        let thresholds = model.state.puzzle.thresholds
+        let crossed = model.state.crossedTiers
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(thresholds.indices, id: \.self) { i in
+                    let reached = i < crossed
+                    let isNext = i == crossed
+                    ZStack {
+                        Capsule()
+                            .fill(reached ? Palette.accent : (isNext ? Palette.accent.opacity(0.18) : Palette.panel))
+                            .overlay(Capsule().strokeBorder(isNext ? Palette.accent : Color.clear, lineWidth: 1.5))
+                        if reached {
+                            Image(systemName: rewardSymbol(model.state.puzzle.rewards[i]))
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Palette.background)
+                        } else {
+                            Text(isNext ? "\(i + 1)" : "·")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(isNext ? Palette.accent : Palette.dim.opacity(0.6))
+                        }
+                    }
+                    .frame(height: 22)
+                }
+            }
+            HStack {
+                Text(String(localized: "Rewards \(crossed) / \(thresholds.count)"))
+                Spacer()
+                if let next = model.nextThresholdText {
+                    Text(String(localized: "Next at \(next)"))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(Palette.dim)
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private func rewardSymbol(_ reward: Reward) -> String {
+        switch reward {
+        case .unlockKeys: return "keyboard"
+        case .addSlot: return "plus"
+        case .convertSlot: return "arrow.triangle.2.circlepath"
+        case .repair: return "wrench.and.screwdriver.fill"
+        case .freeze: return "snowflake"
+        }
     }
 }
