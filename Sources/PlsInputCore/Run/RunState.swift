@@ -25,13 +25,17 @@ public struct Slot: Hashable, Codable, Sendable {
 public struct KeyState: Hashable, Codable, Sendable {
     public var symbol: KeySymbol
     public var uses: Int
+    /// 修键只能修回到这个上限，不能超过初始耐久。
+    public var maxUses: Int
 
-    public init(symbol: KeySymbol, uses: Int) {
+    public init(symbol: KeySymbol, uses: Int, maxUses: Int? = nil) {
         self.symbol = symbol
         self.uses = uses
+        self.maxUses = maxUses ?? uses
     }
 
     public var isDead: Bool { uses <= 0 }
+    public var isFull: Bool { uses >= maxUses }
 }
 
 /// 背包里的道具。
@@ -178,5 +182,10 @@ public struct RunState: Hashable, Codable, Sendable {
     public var hasRepairAvailable: Bool {
         inventory.contains { if case .repair = $0 { return true } else { return false } }
             || pendingChoices.contains { if case .repairNow = $0 { return true } else { return false } }
+    }
+
+    /// 有没有可以修的键（耐久低于上限）。
+    public var hasRepairableKey: Bool {
+        keys.contains { !$0.isFull }
     }
 }

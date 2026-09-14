@@ -114,6 +114,8 @@ public struct BalanceParams: Hashable, Codable, Sendable {
     public var digitKeys: ClosedRange<Int>
     public var opKeys: ClosedRange<Int>
     public var keyDurability: ClosedRange<Int>
+    /// `!` 键的耐久区间，远低于普通键。
+    public var factorialUses: ClosedRange<Int>
     public var totalDurability: ClosedRange<Int>
     public var rotInterval: ClosedRange<Double>
     public var thresholds: [String]
@@ -130,6 +132,7 @@ public struct BalanceParams: Hashable, Codable, Sendable {
         digitKeys: ClosedRange<Int>,
         opKeys: ClosedRange<Int>,
         keyDurability: ClosedRange<Int>,
+        factorialUses: ClosedRange<Int>,
         totalDurability: ClosedRange<Int>,
         rotInterval: ClosedRange<Double>,
         thresholds: [String],
@@ -143,6 +146,7 @@ public struct BalanceParams: Hashable, Codable, Sendable {
         self.digitKeys = digitKeys
         self.opKeys = opKeys
         self.keyDurability = keyDurability
+        self.factorialUses = factorialUses
         self.totalDurability = totalDurability
         self.rotInterval = rotInterval
         self.thresholds = thresholds
@@ -159,9 +163,10 @@ public struct BalanceParams: Hashable, Codable, Sendable {
         digitKeys: 3...4,
         opKeys: 1...2,
         keyDurability: 6...15,
+        factorialUses: 3...5,
         totalDurability: 45...80,
         rotInterval: 2.5...4.0,
-        thresholds: ["1e3", "1e6", "1e12", "1e30", "1e100", "10^10^3", "10^10^6", "10^10^10", "10^10^100", "10^^4"],
+        thresholds: ["1e3", "1e6", "1e12", "1e30", "1e100", "10^10^3", "10^10^10", "10^^4", "10^^5", "10^^7"],
         rewardWeights: ["unlockKey": 30, "addSlot": 30, "convertSlot": 15, "repair": 15, "freeze": 10],
         slotKindWeights: ["normal": 20, "stable": 25, "amp": 25, "rotten": 20, "echo": 10],
         repairAmount: 8,

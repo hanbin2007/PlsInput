@@ -364,10 +364,11 @@ struct KeyboardView: View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
         LazyVGrid(columns: columns, spacing: 8) {
             ForEach(model.state.keys.indices, id: \.self) { index in
+                let key = model.state.keys[index]
                 KeyCap(
-                    key: model.state.keys[index],
-                    highlighted: isRepairTargeting,
-                    enabled: isRepairTargeting || (!model.state.keys[index].isDead && !model.interaction.isChoice)
+                    key: key,
+                    highlighted: isRepairTargeting && !key.isFull,
+                    enabled: isRepairTargeting ? !key.isFull : (!key.isDead && !model.interaction.isChoice)
                 ) {
                     model.pressKey(index)
                 }

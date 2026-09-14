@@ -136,7 +136,7 @@ struct PuzzleTests {
                             "\(seed) 第 \(tier) 档重复解锁 \(def.symbol)"
                         )
                         check(
-                            balance.keyDurability.contains(def.uses),
+                            (def.symbol == .factorial ? balance.factorialUses : balance.keyDurability).contains(def.uses),
                             "\(seed) 第 \(tier) 档解锁键耐久 \(def.uses) 越界"
                         )
                         owned.insert(def.symbol)
@@ -196,24 +196,29 @@ struct PuzzleTests {
         #expect(slotKinds == Set(SlotKind.allCases))
     }
 
-    /// 起手已经有 `^` 时，强制档只能给 `!`，而且全局不会再解锁一次 `^`。
-    @Test func forcedTierNeverDuplicatesStartingPow() {
-        var sawStartingPow = false
+    /// 校准后的规则：起手永远没有 `^` 和 `!`；T1 必解锁 `^`；`!` 最早在第 4 档出现且耐久走低区间。
+    @Test func unlockRulesAfterCalibration() {
+        let balance = BalanceParams.default
         var failures: [String] = []
         for index in 0..<10_000 {
             let seed = "PlsInput-v1-test-\(index)"
             let puzzle = PuzzleGenerator.generate(seed: seed)
-            guard puzzle.keys.contains(where: { $0.symbol == .pow }) else { continue }
-            sawStartingPow = true
-            let unlocksFactorialEarly = puzzle.rewards.prefix(2).contains { reward in
-                guard case .unlockKeys(let defs) = reward else { return false }
-                return defs.count == 1 && defs[0].symbol == .factorial
+            if puzzle.keys.contains(where: { $0.symbol == .pow || $0.symbol == .factorial }) {
+                failures.append("\(seed) 起手带了 ^ 或 !")
             }
-            if !unlocksFactorialEarly, failures.count < 10 {
-                failures.append("\(seed) 起手带 ^ 但前两档没有解锁 !")
+            if case .unlockKeys(let defs) = puzzle.rewards[0], defs.count == 1, defs[0].symbol == .pow,
+               balance.keyDurability.contains(defs[0].uses) {
+                // ok
+            } else {
+                failures.append("\(seed) T1 不是解锁 ^")
             }
+            for (tier, reward) in puzzle.rewards.enumerated() {
+                guard case .unlockKeys(let defs) = reward, defs.contains(where: { $0.symbol == .factorial }) else { continue }
+                if tier < 3 { failures.append("\(seed) 第 \(tier + 1) 档就解锁了 !") }
+                if !balance.factorialUses.contains(defs[0].uses) { failures.append("\(seed) ! 的耐久 \(defs[0].uses) 越界") }
+            }
+            if failures.count >= 10 { break }
         }
-        #expect(sawStartingPow)
         #expect(failures.isEmpty, "\(failures)")
     }
 

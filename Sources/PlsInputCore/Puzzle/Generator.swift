@@ -95,8 +95,8 @@ public enum PuzzleGenerator {
     private static let digitNineWeight = 4
     private static let plusWeight = 1
     private static let timesWeight = 2
-    /// 起手运算符里出现 `^` 的概率。
-    private static let powStartChancePercent = 15
+    /// `!` 最早出现的档位（从 0 数）。
+    private static let factorialMinTier = 3
     /// 耐久重抽的次数上限，超过就走兜底夹取，保证不会挂死。
     private static let durabilityRedrawLimit = 1000
     /// 奖励种类的固定顺序，替代 `rewardWeights` 的字典遍历。
@@ -171,12 +171,8 @@ public enum PuzzleGenerator {
         let wanted = PuzzleRandom.uniform(in: balance.opKeys, using: &rng)
         let count = min(max(wanted, 1), 2)
         let pool: [(value: KeySymbol, weight: Int)] = [(.plus, 1), (.times, 1)]
-        var ops = PuzzleRandom.weightedSample(pool, count: count, using: &rng)
-        // 只有两个及以上运算符时才允许换 `^`，否则 `+`、`×` 会被换光，违反"起手至少有其一"。
-        if ops.count >= 2, PuzzleRandom.chance(powStartChancePercent, outOf: 100, using: &rng) {
-            let index = PuzzleRandom.uniform(in: 0...(ops.count - 1), using: &rng)
-            ops[index] = .pow
-        }
+        let ops = PuzzleRandom.weightedSample(pool, count: count, using: &rng)
+        // 起手永远没有 `^` 和 `!`，它们只能从阈值奖励里来。
         precondition(ops.contains(.plus) || ops.contains(.times), "起手至少要有 + 或 × 之一")
         return ops
     }
@@ -259,13 +255,10 @@ public enum PuzzleGenerator {
         guard count > 0 else { return [] }
         let keyboard = Set(keys.map(\.symbol))
 
-        // T1 或 T2 必须是 `^` 或 `!` 的解锁键（设计文档 3.6、4.3）。
-        let forcedTier = count >= 2 ? PuzzleRandom.uniform(in: 0...1, using: &rng) : 0
-        var forcedSymbol: KeySymbol = PuzzleRandom.chance(1, outOf: 2, using: &rng) ? .pow : .factorial
-        // 起手有 15% 概率已经带了 `^`，这时只能改送 `!`，否则解锁键与键盘上已有的键重复。
-        if keyboard.contains(forcedSymbol) {
-            forcedSymbol = forcedSymbol == .pow ? .factorial : .pow
-        }
+        // T1 必须解锁 `^`（设计文档 3.6、4.3）。起手键盘永远没有 `^`。
+        // 校准发现：解锁落在 T2 时，1e6 靠纯数字拼不到，整局卡死；起手带 `^` 再送 `!` 则是暴击日。
+        let forcedTier = 0
+        let forcedSymbol: KeySymbol = .pow
         let forcedUses = PuzzleRandom.uniform(in: balance.keyDurability, using: &rng)
         // 先把强制档的符号占住，后面的解锁档就不会重复它（哪怕强制档排在第二个）。
         var unlocked: Set<KeySymbol> = [forcedSymbol]
@@ -278,13 +271,14 @@ public enum PuzzleGenerator {
                 continue
             }
             rewards.append(
-                makeReward(keyboard: keyboard, unlocked: &unlocked, balance: balance, using: &rng)
+                makeReward(tier: tier, keyboard: keyboard, unlocked: &unlocked, balance: balance, using: &rng)
             )
         }
         return rewards
     }
 
     private static func makeReward<G: RandomNumberGenerator>(
+        tier: Int,
         keyboard: Set<KeySymbol>,
         unlocked: inout Set<KeySymbol>,
         balance: BalanceParams,
@@ -294,7 +288,7 @@ public enum PuzzleGenerator {
         let kind = PuzzleRandom.weightedPick(candidates, using: &rng) ?? "repair"
         switch kind {
         case "unlockKey":
-            guard let defs = makeUnlockKeys(taken: keyboard.union(unlocked), balance: balance, using: &rng) else {
+            guard let defs = makeUnlockKeys(tier: tier, taken: keyboard.union(unlocked), balance: balance, using: &rng) else {
                 // 候选池被抽空（理论上要先解锁十几个键），退化成修键。
                 return .repair(amount: balance.repairAmount)
             }
@@ -314,13 +308,15 @@ public enum PuzzleGenerator {
     /// 解锁键候选池：键盘上没有、也没被前面的档解锁过的键。
     /// `(` 与 `)` 成对出现，一档送两个。
     private static func makeUnlockKeys<G: RandomNumberGenerator>(
+        tier: Int,
         taken: Set<KeySymbol>,
         balance: BalanceParams,
         using rng: inout G
     ) -> [KeyDef]? {
         var pool: [(value: [KeySymbol], weight: Int)] = []
         if !taken.contains(.pow) { pool.append(([.pow], powWeight)) }
-        if !taken.contains(.factorial) { pool.append(([.factorial], factorialWeight)) }
+        // `!` 每加一个就多一层，是跳档键，只在第 4 档起出现，且耐久很低。
+        if tier >= factorialMinTier, !taken.contains(.factorial) { pool.append(([.factorial], factorialWeight)) }
         if !taken.contains(.lparen), !taken.contains(.rparen) {
             pool.append(([.lparen, .rparen], parenWeight))
         }
@@ -330,8 +326,10 @@ public enum PuzzleGenerator {
         if !taken.contains(.plus) { pool.append(([.plus], plusWeight)) }
         if !taken.contains(.times) { pool.append(([.times], timesWeight)) }
         guard let symbols = PuzzleRandom.weightedPick(pool, using: &rng) else { return nil }
-        // 成对的括号共用一次耐久抽取，两个键耐久相同。
-        let uses = PuzzleRandom.uniform(in: balance.keyDurability, using: &rng)
+        // 成对的括号共用一次耐久抽取，两个键耐久相同；`!` 走单独的低耐久区间。
+        let uses = symbols == [.factorial]
+            ? PuzzleRandom.uniform(in: balance.factorialUses, using: &rng)
+            : PuzzleRandom.uniform(in: balance.keyDurability, using: &rng)
         return symbols.map { KeyDef($0, uses: uses) }
     }
 

@@ -712,7 +712,7 @@ struct BotPlayer {
     private func repairAction() -> RunAction? {
         guard let slot = state.inventory.firstIndex(where: { if case .repair = $0 { return true } else { return false } })
         else { return nil }
-        guard let key = neediestBrokenKey() else { return nil }
+        guard let key = neediestBrokenKey(), !state.keys[key].isFull else { return nil }
         return .useItem(slot, target: key)
     }
 
@@ -738,7 +738,11 @@ struct BotPlayer {
         case .convertSlot(let kind):
             return resolveConvertSlot(kind)
         case .repairNow:
-            let key = neediestBrokenKey() ?? weakestKeyIndex()
+            // 修键只能修回上限，满耐久的键会被引擎拒绝，只在能修的键里挑。
+            var key = neediestBrokenKey() ?? weakestKeyIndex()
+            if state.keys[key].isFull, let repairable = state.keys.indices.first(where: { !state.keys[$0].isFull }) {
+                key = repairable
+            }
             forcePlanAfterChoice()
             return .chooseRepairNow(keyIndex: key)
         }

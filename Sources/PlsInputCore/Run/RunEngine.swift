@@ -134,8 +134,9 @@ extension RunState {
         case .repair(let amount):
             guard let target else { return [.rejected(.needsTarget)] }
             guard keys.indices.contains(target) else { return [.rejected(.invalidIndex)] }
+            guard !keys[target].isFull else { return [.rejected(.keyAlreadyFull)] }
             inventory.remove(at: i)
-            keys[target].uses += amount
+            keys[target].uses = min(keys[target].uses + amount, keys[target].maxUses)
             return [.itemUsed(item)]
         }
     }
@@ -173,8 +174,9 @@ extension RunState {
     private mutating func chooseRepairNow(keyIndex: Int) -> [RunEvent] {
         guard case .repairNow(let amount)? = pendingChoices.first else { return [.rejected(.noChoicePending)] }
         guard keys.indices.contains(keyIndex) else { return [.rejected(.invalidIndex)] }
+        guard !keys[keyIndex].isFull else { return [.rejected(.keyAlreadyFull)] }
         pendingChoices.removeFirst()
-        keys[keyIndex].uses += amount
+        keys[keyIndex].uses = min(keys[keyIndex].uses + amount, keys[keyIndex].maxUses)
         var events: [RunEvent] = [.itemUsed(.repair(amount: amount))]
         events += checkExhausted()
         return events
@@ -224,6 +226,7 @@ extension RunState {
             for def in defs {
                 if let existing = keys.firstIndex(where: { $0.symbol == def.symbol }) {
                     keys[existing].uses += def.uses
+                    keys[existing].maxUses += def.uses
                 } else {
                     let insertAt = keys.firstIndex { $0.symbol.sortOrder > def.symbol.sortOrder } ?? keys.count
                     keys.insert(KeyState(symbol: def.symbol, uses: def.uses), at: insertAt)
@@ -243,6 +246,7 @@ extension RunState {
                 inventory.append(.repair(amount: amount))
                 return [.itemAdded(.repair(amount: amount))]
             }
+            guard hasRepairableKey else { return [.rewardWasted(reward)] }
             let choice = PendingChoice.repairNow(amount: amount)
             pendingChoices.append(choice)
             return [.choiceRequired(choice)]

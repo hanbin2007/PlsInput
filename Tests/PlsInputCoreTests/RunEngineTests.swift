@@ -322,8 +322,65 @@ struct RunEngineTests {
         #expect(s.apply(.useItem(0, target: nil)) == [.rejected(.needsTarget)])
         #expect(s.apply(.useItem(3, target: 0)) == [.rejected(.invalidIndex)])
         s.apply(.useItem(0, target: 0))
-        #expect(s.keys[0].uses == 9)
+        // 修键只能修回初始上限：1 + 8 封顶到 2
+        #expect(s.keys[0].uses == 2)
+        #expect(s.keys[0].maxUses == 2)
         #expect(s.inventory.isEmpty)
+    }
+
+    @Test func repairIsCappedAtInitialDurability() {
+        let p = puzzle(
+            keys: [KeyDef(.digit(9), uses: 4), KeyDef(.pow, uses: 5)],
+            thresholds: ["1", "10", "100", "1000"],
+            rewards: [.repair(amount: 8), .repair(amount: 8), .repair(amount: 8), .repair(amount: 8)]
+        )
+        var s = RunState(puzzle: p)
+        press(&s, .digit(9))
+        // 满耐久的键不能修，道具不消耗
+        #expect(s.apply(.useItem(0, target: 1)) == [.rejected(.keyAlreadyFull)])
+        #expect(s.inventory.count == 1)
+        press(&s, .digit(9))
+        press(&s, .digit(9))
+        #expect(s.inventory.count == 3)
+        // 第四次按键：9999 跨 T4，背包已满，9 键刚好报废，必须立即修
+        press(&s, .digit(9))
+        #expect(s.keys[0].isDead)
+        #expect(s.crossedTiers == 4)
+        #expect(s.currentChoice == .repairNow(amount: 8))
+        #expect(s.apply(.chooseRepairNow(keyIndex: 1)) == [.rejected(.keyAlreadyFull)])
+        s.apply(.chooseRepairNow(keyIndex: 0))
+        // 0 + 8 封顶到初始的 4
+        #expect(s.keys[0].uses == 4)
+        #expect(s.pendingChoices.isEmpty)
+        #expect(s.apply(.useItem(0, target: 0)) == [.rejected(.keyAlreadyFull)])
+    }
+
+    @Test func repairIsWastedWhenNothingToRepair() {
+        // 全是烂格：按键不耗耐久，键始终满；背包装满三个修键后，第四个作废
+        let p = puzzle(
+            slots: [.rotten, .rotten, .rotten, .rotten],
+            keys: [KeyDef(.digit(9), uses: 5)],
+            thresholds: ["1", "10", "100", "1000"],
+            rewards: [.repair(amount: 8), .repair(amount: 8), .repair(amount: 8), .repair(amount: 8)]
+        )
+        var s = RunState(puzzle: p)
+        press(&s, .digit(9)); press(&s, .digit(9)); press(&s, .digit(9))
+        #expect(s.inventory.count == 3)
+        #expect(s.keys[0].isFull)
+        #expect(s.apply(.useItem(0, target: 0)) == [.rejected(.keyAlreadyFull)])
+        let events = press(&s, .digit(9))
+        #expect(events.contains(.rewardWasted(.repair(amount: 8))))
+        #expect(s.inventory.count == 3)
+        #expect(s.pendingChoices.isEmpty)
+        #expect(s.crossedTiers == 4)
+    }
+
+    @Test func unlockingExistingKeyRaisesCap() {
+        let p = puzzle(thresholds: ["1e3"], rewards: [.unlockKeys([KeyDef(.pow, uses: 4)])])
+        var s = RunState(puzzle: p)
+        press(&s, .digit(9)); press(&s, .pow); press(&s, .digit(9))
+        #expect(s.keys[1].uses == 9 + 4)
+        #expect(s.keys[1].maxUses == 10 + 4)
     }
 
     @Test func freezePausesRotClock() {
@@ -352,7 +409,8 @@ struct RunEngineTests {
         #expect(s.allKeysDead)
         #expect(s.phase == .running)
         s.apply(.useItem(0, target: 0))
-        press(&s, .digit(9))
+        // 修回上限 2，再按两次就耗尽
+        #expect(s.keys[0].uses == 2)
         press(&s, .digit(9))
         let events = press(&s, .digit(9))
         #expect(events.contains(.ended(.keysExhausted)))

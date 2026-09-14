@@ -25,6 +25,7 @@ public enum RejectReason: Hashable, Sendable {
     case echoSlot
     case badChoice
     case needsTarget
+    case keyAlreadyFull
 }
 
 /// 状态机对外的事件。序号指向动作执行后的状态。
@@ -39,6 +40,8 @@ public enum RunEvent: Hashable, Sendable {
     case keysUnlocked([KeyDef])
     case itemAdded(Item)
     case itemUsed(Item)
+    /// 背包已满且没有可修的键时，修键道具直接作废。
+    case rewardWasted(Reward)
     case choiceRequired(PendingChoice)
     case slotAdded(Int, SlotKind)
     case slotConverted(Int, SlotKind)
