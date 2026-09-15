@@ -4,34 +4,50 @@ import PlsInputCore
 struct ResultView: View {
     var model: GameViewModel
     @Environment(AppModel.self) private var app
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var revealed = false
+    @State private var burst = 0
 
     var body: some View {
         ZStack {
             Palette.background.ignoresSafeArea()
+            FloatingSymbolsBackground(density: 16, opacity: 0.07)
             VStack(spacing: 22) {
                 Spacer()
                 Text(model.mode == .daily ? "Today's result" : "Practice result")
                     .font(.headline)
                     .foregroundStyle(Palette.dim)
-                Text(model.peakText)
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.3)
-                    .lineLimit(1)
-                    .foregroundStyle(Palette.accent)
-                    .padding(.horizontal, 24)
+                    .staggeredAppear(index: 0)
+                ZStack {
+                    BurstView(trigger: burst, color: Palette.accent, count: 28, radius: 150)
+                    Text(model.peakText)
+                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.3)
+                        .lineLimit(1)
+                        .foregroundStyle(Palette.accent)
+                        .glow(Palette.accent, strength: 0.8)
+                        .padding(.horizontal, 24)
+                        .scaleEffect(revealed ? 1 : 0.9)
+                        .opacity(revealed ? 1 : 0)
+                }
 
                 VStack(spacing: 8) {
                     row(String(localized: "Rewards claimed"), "\(model.state.crossedTiers) / \(model.state.puzzle.thresholds.count)")
+                        .staggeredAppear(index: 3)
                     row(String(localized: "Time"), model.clockText)
+                        .staggeredAppear(index: 4)
                     row(String(localized: "Ended by"), endReasonText)
+                        .staggeredAppear(index: 5)
                     if model.mode == .daily {
                         row(String(localized: "Rank"), rankText)
+                            .staggeredAppear(index: 6)
                     }
                 }
                 .padding(16)
                 .background(RoundedRectangle(cornerRadius: 14).fill(Palette.panel))
                 .padding(.horizontal, 24)
+                .staggeredAppear(index: 2)
 
                 Spacer()
 
@@ -43,7 +59,9 @@ struct ResultView: View {
                         .background(RoundedRectangle(cornerRadius: 14).fill(Palette.tileRaised))
                         .foregroundStyle(Palette.text)
                 }
+                .buttonStyle(PressableButtonStyle())
                 .padding(.horizontal, 24)
+                .staggeredAppear(index: 7)
 
                 Button {
                     app.dismissGame()
@@ -55,11 +73,24 @@ struct ResultView: View {
                         .background(RoundedRectangle(cornerRadius: 14).fill(Palette.accent))
                         .foregroundStyle(Palette.background)
                 }
+                .buttonStyle(PressableButtonStyle())
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
+                .staggeredAppear(index: 8)
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            if reduceMotion {
+                revealed = true
+            } else {
+                withAnimation(Motion.bouncy.delay(0.12)) { revealed = true }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    burst += 1
+                }
+            }
+        }
     }
 
     private func row(_ title: String, _ value: String) -> some View {

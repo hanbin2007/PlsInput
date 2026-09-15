@@ -47,4 +47,13 @@ final class Store: Sendable {
 
 struct AppSettings: Codable, Hashable, Sendable {
     var hapticsEnabled = true
+    var tutorialCompleted = false
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        hapticsEnabled = try c.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
+        tutorialCompleted = try c.decodeIfPresent(Bool.self, forKey: .tutorialCompleted) ?? false
+    }
 }

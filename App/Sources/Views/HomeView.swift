@@ -4,33 +4,59 @@ import PlsInputCore
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
+    @State private var showRules = false
+    @State private var autoTutorialOffered = false
 
     var body: some View {
         @Bindable var app = app
         NavigationStack {
             ZStack {
                 Palette.background.ignoresSafeArea()
+                FloatingSymbolsBackground()
                 ScrollView {
                     VStack(spacing: 18) {
                         header
+                            .staggeredAppear(index: 0)
                         if let notice = app.notice {
                             banner(notice, color: Palette.stable)
+                                .staggeredAppear(index: 1)
                         }
                         if app.requiresUpdate {
                             banner(String(localized: "This version is too old for today's puzzle. Please update the app."), color: Palette.danger)
+                                .staggeredAppear(index: 1)
                         }
                         todayCard
+                            .staggeredAppear(index: 2)
                         practiceCard
+                            .staggeredAppear(index: 3)
                         NavigationLink {
                             LeaderboardView()
                         } label: {
                             rowLink(String(localized: "Leaderboard"), systemImage: "list.number")
                         }
+                        .buttonStyle(PressableButtonStyle())
+                        .staggeredAppear(index: 4)
+                        Button {
+                            app.startTutorial()
+                        } label: {
+                            rowLink(String(localized: "How to play"), systemImage: "graduationcap")
+                        }
+                        .buttonStyle(PressableButtonStyle())
+                        .staggeredAppear(index: 5)
+                        Button {
+                            showRules = true
+                        } label: {
+                            rowLink(String(localized: "Rules"), systemImage: "book")
+                        }
+                        .buttonStyle(PressableButtonStyle())
+                        .staggeredAppear(index: 6)
                         NavigationLink {
                             SettingsView()
                         } label: {
                             rowLink(String(localized: "Settings"), systemImage: "gearshape")
                         }
+                        .buttonStyle(PressableButtonStyle())
+                        .staggeredAppear(index: 7)
                     }
                     .padding(20)
                 }
@@ -38,6 +64,7 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showRules) { RulesView() }
         .fullScreenCover(isPresented: Binding(
             get: { app.activeGame != nil },
             set: { if !$0 { app.dismissGame() } }
@@ -50,13 +77,20 @@ struct HomeView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { app.rollDayIfNeeded() }
         }
+        .onChange(of: app.isBootstrapped) { _, ready in
+            guard ready, !autoTutorialOffered, !app.settings.tutorialCompleted, app.activeGame == nil else { return }
+            autoTutorialOffered = true
+            app.startTutorial()
+        }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("PlsInput")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .tracking(-0.5)
                 .foregroundStyle(Palette.text)
+                .glow(Palette.accent, strength: 0.35)
             Text("Type the biggest number you can.")
                 .font(.subheadline)
                 .foregroundStyle(Palette.dim)
@@ -83,6 +117,7 @@ struct HomeView: View {
                     .minimumScaleFactor(0.4)
                     .lineLimit(1)
                     .foregroundStyle(Palette.accent)
+                    .glow(Palette.accent, strength: 0.5)
                 HStack {
                     Text(String(localized: "Rewards claimed: \(result.tiersCrossed)"))
                     Spacer()
@@ -116,7 +151,7 @@ struct HomeView: View {
             .font(.footnote)
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Palette.panel))
+        .background(card)
     }
 
     private var practiceCard: some View {
@@ -142,9 +177,16 @@ struct HomeView: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Palette.tileRaised))
                     .foregroundStyle(Palette.text)
             }
+            .buttonStyle(PressableButtonStyle())
         }
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Palette.panel))
+        .background(card)
+    }
+
+    private var card: some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(Palette.panel)
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(0.05), lineWidth: 1))
     }
 
     private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -155,7 +197,9 @@ struct HomeView: View {
                 .padding(.vertical, 14)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Palette.accent))
                 .foregroundStyle(Palette.background)
+                .glow(Palette.accent, strength: 0.35)
         }
+        .buttonStyle(PressableButtonStyle())
     }
 
     private func rowLink(_ title: String, systemImage: String) -> some View {

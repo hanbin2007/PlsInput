@@ -146,7 +146,8 @@ extension RunState {
         guard choices.contains(kind) else { return [.rejected(.badChoice)] }
         guard position >= 0, position <= slots.count else { return [.rejected(.invalidIndex)] }
         pendingChoices.removeFirst()
-        slots.insert(Slot(kind: kind), at: position)
+        slots.insert(Slot(id: nextSlotID, kind: kind), at: position)
+        nextSlotID += 1
         if let s = selectedSlot, s >= position { selectedSlot = s + 1 }
         var events: [RunEvent] = [.slotAdded(position, kind)]
         events += reevaluate()

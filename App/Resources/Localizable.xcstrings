@@ -1,12 +1,45 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "#%lld": {},
+    "%@ (%lld)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ (%2$lld)"
+          }
+        }
+      }
+    },
+    "%lld": {},
     "%lld day streak": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "连续 %lld 天"
+          }
+        }
+      }
+    },
+    "%llds": {},
+    "+ adds, × multiplies, ^ raises to a power (right to left: 2^3^2 = 2^9), ! is factorial and binds tightest, ( ) group.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+ 加，× 乘，^ 乘方（从右往左：2^3^2 = 2^9），! 阶乘且优先级最高，( ) 括号。"
+          }
+        }
+      }
+    },
+    "A new slot! Choose a type. Rot is paused while you decide.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新格子！选一种类型。选的时候不腐烂。"
           }
         }
       }
@@ -51,6 +84,16 @@
         }
       }
     },
+    "Bag full and every key is at full durability. The repair kit was lost.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背包满了，而且每个键都是满耐久，这个修键作废了。"
+          }
+        }
+      }
+    },
     "Bag is empty": {
       "localizations": {
         "zh-Hans": {
@@ -87,6 +130,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "榜单"
+          }
+        }
+      }
+    },
+    "Build the biggest number you can with today's keyboard. Your peak value is your score.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用今天的键盘拼出尽可能大的数，整局的峰值就是分数。"
           }
         }
       }
@@ -161,6 +214,26 @@
         }
       }
     },
+    "Cross 1,000 to earn a reward. Press one more 9.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跨过 1,000 就有道具。再按一个 9。"
+          }
+        }
+      }
+    },
+    "Cross a threshold for the first time to earn a reward: new keys, new slots, slot conversions, repair kits, or a freeze that pauses rot. The bag holds three items.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首次跨过一个阈值就发一个道具：新键、新格子、改格、修键，或者暂停腐烂的冻结。背包放三个。"
+          }
+        }
+      }
+    },
     "Daily puzzle": {
       "localizations": {
         "zh-Hans": {
@@ -191,12 +264,42 @@
         }
       }
     },
+    "Digits rot. Watch the red bar under a slot and wait for a digit to drop.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数字会腐烂。看格子下面的红条，等一个数字掉一格。"
+          }
+        }
+      }
+    },
     "Done": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "完成"
+          }
+        }
+      }
+    },
+    "Durability": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "耐久"
+          }
+        }
+      }
+    },
+    "Each key has a limited number of presses. At 0 it breaks. Repair kits restore it, up to its original durability. Filling a Rotten slot is free.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个键有固定次数，到 0 就坏。修键能修回来，但不超过初始耐久。填烂格不耗耐久。"
           }
         }
       }
@@ -241,6 +344,56 @@
         }
       }
     },
+    "Ending": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "结束"
+          }
+        }
+      }
+    },
+    "Every digit you place ticks down over time until it reaches 0. Overwrite it to refresh. Operators never rot.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "填进去的数字会随时间往下掉，掉到 0 为止。覆盖它就能刷新。运算符不腐烂。"
+          }
+        }
+      }
+    },
+    "Every key shows how many presses it has left. At 0 the key breaks. Repair kits bring it back.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个键右下角是剩余次数，到 0 键就坏了。修键道具能修回来。"
+          }
+        }
+      }
+    },
+    "Fill it with 9. Three digits in the exponent are astronomically more than two.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "往里填个 9。指数从两位变三位，数大到天文级别。"
+          }
+        }
+      }
+    },
+    "Finish": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
     "Freeze %llds": {
       "localizations": {
         "zh-Hans": {
@@ -281,12 +434,42 @@
         }
       }
     },
+    "Goal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标"
+          }
+        }
+      }
+    },
+    "Goal: build the biggest number you can. Everything else is a means to that.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目标：拼出尽可能大的数。其它一切都是为了这个。"
+          }
+        }
+      }
+    },
     "Haptics": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "震动反馈"
+          }
+        }
+      }
+    },
+    "How to play": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "怎么玩"
           }
         }
       }
@@ -431,12 +614,32 @@
         }
       }
     },
+    "Now tap a gap to place it. Position matters: next to ^ it becomes part of the exponent.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在点一个缝隙放进去。位置有讲究：放在 ^ 右边就成了指数的一部分。"
+          }
+        }
+      }
+    },
     "One attempt per day. Everyone gets the same keyboard.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "每天一次机会，所有人同一个键盘。"
+          }
+        }
+      }
+    },
+    "Operators": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "运算符"
           }
         }
       }
@@ -521,6 +724,26 @@
         }
       }
     },
+    "Press 9.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按一下 9。"
+          }
+        }
+      }
+    },
+    "Press a key to fill the next empty slot. Tap a filled slot, then press a key to overwrite it. Long-press to clear. Adjacent digits join into one number.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按键填进下一个空格。点已填的格子再按键就是覆盖。长按清空。相邻数字会连成一个数。"
+          }
+        }
+      }
+    },
     "Random puzzles, unlimited tries, no ranking.": {
       "localizations": {
         "zh-Hans": {
@@ -571,6 +794,16 @@
         }
       }
     },
+    "Rewards": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "道具"
+          }
+        }
+      }
+    },
     "Rewards %lld / %lld": {
       "localizations": {
         "zh-Hans": {
@@ -601,6 +834,16 @@
         }
       }
     },
+    "Rot": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "腐烂"
+          }
+        }
+      }
+    },
     "Rot is paused while you choose.": {
       "localizations": {
         "zh-Hans": {
@@ -627,6 +870,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "烂格"
+          }
+        }
+      }
+    },
+    "Rules": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "规则"
+          }
+        }
+      }
+    },
+    "Save it: tap the rotted slot, then press 9. Overwriting costs one press of durability.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "救它：先点那个烂掉的格子，再按 9。覆盖要花一次耐久。"
           }
         }
       }
@@ -691,12 +954,52 @@
         }
       }
     },
+    "Skip": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳过"
+          }
+        }
+      }
+    },
     "Slot selected. Press a key to overwrite it, or tap it again to deselect.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已选中格子。按键覆盖它，或再点一次取消。"
+          }
+        }
+      }
+    },
+    "Slot types": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格子类型"
+          }
+        }
+      }
+    },
+    "Slot types: Stable never rots. Echo copies the slot two to its left. Amp doubles a digit. Rotten rots fast but costs no durability.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格子类型：稳定格不腐烂；回声格复制左边第二格；增幅格数字翻倍；烂格腐烂快但填它不耗耐久。"
+          }
+        }
+      }
+    },
+    "Slots and keys": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格子与键"
           }
         }
       }
@@ -781,6 +1084,26 @@
         }
       }
     },
+    "That's the game. One puzzle a day, one attempt, everyone on the same keyboard. Your peak is your score.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "就这些。每天一题，一次机会，所有人同一个键盘。峰值就是你的分数。"
+          }
+        }
+      }
+    },
+    "The run ends when every key is broken with no repair kit left, when you tap End, or after five minutes.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有键坏掉且没有修键、你点了结束、或者到五分钟，这局就结束。"
+          }
+        }
+      }
+    },
     "This version is too old for today's puzzle. Please update the app.": {
       "localizations": {
         "zh-Hans": {
@@ -831,6 +1154,26 @@
         }
       }
     },
+    "Two items landed in your bag. Tap Freeze to pause rot for 10 seconds.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "两个道具进了背包。点冻结，腐烂暂停 10 秒。"
+          }
+        }
+      }
+    },
+    "Two more 9s. Make it 999.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再按两次 9，拼成 999。"
+          }
+        }
+      }
+    },
     "Type the biggest number you can.": {
       "localizations": {
         "zh-Hans": {
@@ -871,6 +1214,16 @@
         }
       }
     },
+    "You unlocked ^. Tap the second slot, then press ^ to turn 9999 into 9^99.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你解锁了 ^。点第二个格子，再按 ^，把 9999 变成 9^99。"
+          }
+        }
+      }
+    },
     "Your peak so far becomes your score.": {
       "localizations": {
         "zh-Hans": {
@@ -880,7 +1233,9 @@
           }
         }
       }
-    }
+    },
+    "v%lld": {},
+    "·": {}
   },
   "version": "1.0"
 }

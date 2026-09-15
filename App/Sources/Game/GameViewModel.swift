@@ -10,6 +10,7 @@ final class GameViewModel {
     enum Mode: Equatable {
         case daily
         case practice
+        case tutorial
     }
 
     /// 界面当前处于哪种交互模式。
@@ -38,12 +39,21 @@ final class GameViewModel {
     private(set) var state: RunState
     private(set) var interaction: Interaction = .normal
     private(set) var toast: Toast?
-    /// 每次刷新峰值加一，用来触发动画。
-    private(set) var peakPulse = 0
     private(set) var isRunningLoop = false
     var hapticsEnabled = true
     var onPersist: ((RunState) -> Void)?
     var onEnded: ((RunState) -> Void)?
+
+    // MARK: 给动画用的脉冲计数，每次加一触发一次效果
+
+    private(set) var peakPulse = 0
+    private(set) var thresholdPulse = 0
+    private(set) var freezePulse = 0
+    private(set) var rejectPulse = 0
+    /// 键序号 → 报废次数，用来抖动。
+    private(set) var keyShake: [Int: Int] = [:]
+    /// 格子 id → 腐烂掉一格的次数，用来抖动。
+    private(set) var slotShake: [Int: Int] = [:]
 
     private var loop: Task<Void, Never>?
     private var lastTickAt: Date?
@@ -63,6 +73,11 @@ final class GameViewModel {
     var displayText: String { state.currentValue.map(BigNumFormatter.string) ?? "—" }
     var peakText: String { BigNumFormatter.string(state.peak) }
     var nextThresholdText: String? { state.nextThreshold.map(BigNumFormatter.string) }
+    /// 0 到 1，数越大越亮。
+    var magnitude: Double {
+        guard let v = state.currentValue, !v.isZero else { return 0 }
+        return min(max(v.slog10() / 8, 0), 1)
+    }
     var clockText: String {
         let seconds = Int(state.rotClock)
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
@@ -113,7 +128,13 @@ final class GameViewModel {
         let elapsed = min(now.timeIntervalSince(last), 0.5)
         lastTickAt = now
         guard elapsed > 0 else { return }
+        let before = state.slots.indices.map { state.rottedDigit(at: $0) }
         let events = state.tick(elapsed)
+        for (i, old) in before.enumerated() where state.slots.indices.contains(i) {
+            if let old, let new = state.rottedDigit(at: i), new < old {
+                slotShake[state.slots[i].id, default: 0] += 1
+            }
+        }
         handle(events)
         persistAccumulator += elapsed
         if persistAccumulator >= 1 {
@@ -123,6 +144,7 @@ final class GameViewModel {
     }
 
     private func persist() {
+        guard mode == .daily else { return }
         onPersist?(state)
     }
 
@@ -222,6 +244,7 @@ final class GameViewModel {
             case .newPeak:
                 peakPulse += 1
             case .thresholdCrossed(_, let reward):
+                thresholdPulse += 1
                 switch reward {
                 case .addSlot, .convertSlot:
                     break // 交互提示会说明，不再弹 toast
@@ -229,13 +252,19 @@ final class GameViewModel {
                     showToast(Self.text(for: reward))
                 }
                 haptic(.success)
-            case .keyDied:
+            case .rewardWasted:
+                showToast(String(localized: "Bag full and every key is at full durability. The repair kit was lost."))
+            case .keyDied(let index):
+                keyShake[index, default: 0] += 1
                 haptic(.warning)
             case .freezeStarted:
+                freezePulse += 1
                 haptic(.medium)
             case .rejected(.noEmptySlot):
+                rejectPulse += 1
                 showToast(String(localized: "Slots are full. Tap a slot, then press a key to overwrite it."))
-            case .rejected(.keyDead):
+            case .rejected(.keyDead), .rejected(.keyAlreadyFull):
+                rejectPulse += 1
                 haptic(.error)
             case .ended:
                 pause()

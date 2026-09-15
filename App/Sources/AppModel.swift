@@ -20,6 +20,8 @@ final class AppModel {
 
     /// 正在展示的对局。
     var activeGame: GameViewModel?
+    /// 教程进行中时的引导控制器。
+    var activeTutorial: TutorialController?
 
     init(store: Store = Store()) {
         self.store = store
@@ -181,5 +183,20 @@ final class AppModel {
     func dismissGame() {
         activeGame?.pause()
         activeGame = nil
+        activeTutorial = nil
+    }
+
+    // MARK: - 教程
+
+    func startTutorial() {
+        let model = GameViewModel(mode: .tutorial, state: RunState(puzzle: TutorialPuzzle.make()))
+        model.hapticsEnabled = settings.hapticsEnabled
+        activeTutorial = TutorialController(game: model)
+        activeGame = model
+    }
+
+    func completeTutorial() {
+        settings.tutorialCompleted = true
+        dismissGame()
     }
 }

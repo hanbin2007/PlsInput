@@ -12,11 +12,14 @@ public enum SlotContent: Hashable, Codable, Sendable {
     }
 }
 
-public struct Slot: Hashable, Codable, Sendable {
+public struct Slot: Hashable, Codable, Sendable, Identifiable {
+    /// 一局内唯一，界面用它做插入和移动动画。
+    public var id: Int
     public var kind: SlotKind
     public var content: SlotContent
 
-    public init(kind: SlotKind, content: SlotContent = .empty) {
+    public init(id: Int, kind: SlotKind, content: SlotContent = .empty) {
+        self.id = id
         self.kind = kind
         self.content = content
     }
@@ -87,10 +90,13 @@ public struct RunState: Hashable, Codable, Sendable {
     public var pendingChoices: [PendingChoice]
     /// 当前显示值；nil 表示表达式不合法。
     public var currentValue: BigNum?
+    /// 下一个新格子的 id。
+    public var nextSlotID: Int
 
     public init(puzzle: DailyPuzzle) {
         self.puzzle = puzzle
-        self.slots = puzzle.slots.map { Slot(kind: $0) }
+        self.slots = puzzle.slots.enumerated().map { Slot(id: $0.offset, kind: $0.element) }
+        self.nextSlotID = puzzle.slots.count
         self.keys = puzzle.keys.map { KeyState(symbol: $0.symbol, uses: $0.uses) }
         self.inventory = []
         self.rotClock = 0

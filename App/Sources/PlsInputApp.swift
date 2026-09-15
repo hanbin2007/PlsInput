@@ -29,13 +29,21 @@ enum LaunchArguments {
             app.startPractice(seed: seed)
         } else if args.contains("--autostart-daily") {
             app.startDaily()
+        } else if args.contains("--autostart-tutorial") {
+            app.startTutorial()
+        }
+        if args.contains("--skip-tutorial") {
+            app.settings.tutorialCompleted = true
         }
         if let i = args.firstIndex(of: "--script"), i + 1 < args.count, let game = app.activeGame {
+            tutorialApp = app
             Task { await play(script: args[i + 1], on: game) }
         }
     }
 
     /// 逗号分隔的动作：k<键> s<格> g<缝隙> c<候选序号> v<格> r<键> i<道具> w<秒> l<格>(长按清空) e(结束)。
+    @MainActor private static weak var tutorialApp: AppModel?
+
     @MainActor
     static func play(script: String, on game: GameViewModel) async {
         for raw in script.split(separator: ",") {
@@ -58,6 +66,8 @@ enum LaunchArguments {
             case "w":
                 try? await Task.sleep(for: .seconds(Double(arg) ?? 1))
             case "e": game.end()
+            case "n":
+                if let app = tutorialApp { app.activeTutorial?.advanceIfManual() }
             default: break
             }
             try? await Task.sleep(for: .milliseconds(120))
