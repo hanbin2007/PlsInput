@@ -34,7 +34,7 @@ LOCK_FILE="$OPS_DIR/.deploy.lock"
 CHANGE_DIR="$OPS_DIR/change-records"
 NGINX_CONF="${PLSINPUT_NGINX_CONF:-/etc/nginx/conf.d/kn-site.conf}"
 # 锚点：443 server 块里 include analytics snippet 的那一行，新 location 插在它前面。
-ANCHOR_RE='include[[:space:]]+[^;]*snippets/kn-site-analytics[.]conf'
+ANCHOR_RE='include[[:space:]]+[^;]*snippets/kn-site-analytics[*]?[.]conf'
 MIN_FREE_MB=500
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
