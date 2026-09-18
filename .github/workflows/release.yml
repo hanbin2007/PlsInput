@@ -1,0 +1,518 @@
+# PlsInput 发版流水线
+#
+# 两个任务：
+#   build           归档 + 签名 + 导出（destination=upload 时直接传 TestFlight）
+#   github-release  打 tag 时建一个 GitHub Release，把 dSYM 压缩包挂上去
+#
+# 三种触发方式，只有前两种可能真正上传：
+#   push tag v*            正式发版，版本号取自 tag
+#   workflow_dispatch      手动，可指定 marketing_version、可把 upload 关掉只出 ipa
+#   pull_request（限本文件与 composite action）  只做不签名的 dry run，永不上传
+#
+# 没有配签名 secrets（或事件是 pull_request）时整条流水线退化成"不签名 dry run"：
+# 仍然用 Release 配置归档一次，证明发版路径编得过，然后绿灯结束。
+#
+# 操作手册见 docs/ops/release.md。
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: 'Marketing version, e.g. "0.1.1". Empty = take it from App/project.yml.'
+        required: false
+        type: string
+        default: ""
+      upload:
+        description: "Upload to TestFlight (App Store Connect). Off = only export the .ipa."
+        required: false
+        type: boolean
+        default: true
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/actions/**
+
+# 同一个 ref 上的发版不并发，但也绝不取消已经在跑的那条：
+# 上传 App Store Connect 的动作中途被 kill 会留下半个构建。
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  XCODE_VERSION: "26.6"
+  SCHEME: PlsInput
+  TEAM_ID: NCLY9ZGRMZ
+  ARCHIVE_PATH: .build/PlsInput.xcarchive
+  EXPORT_PATH: .build/export
+
+jobs:
+  build:
+    name: Archive and upload
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # CURRENT_PROJECT_VERSION = git rev-list --count HEAD，必须有完整历史。
+          fetch-depth: 0
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+          install-xcodegen: "true"
+
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_MARKETING_VERSION: ${{ inputs.marketing_version }}
+        run: |
+          set -euo pipefail
+          valid() { printf '%s' "$1" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; }
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            source="tag ${GITHUB_REF_NAME}"
+            if ! valid "${version}"; then
+              echo "::error title=Bad tag::tag ${GITHUB_REF_NAME} does not look like vX.Y or vX.Y.Z"
+              exit 1
+            fi
+          elif [ -n "${INPUT_MARKETING_VERSION}" ]; then
+            version="${INPUT_MARKETING_VERSION}"
+            source="workflow_dispatch input"
+            if ! valid "${version}"; then
+              echo "::error title=Bad input::marketing_version '${version}' does not look like X.Y or X.Y.Z"
+              exit 1
+            fi
+          else
+            version="$(sed -n 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"\{0,1\}\([0-9][0-9.]*\)"\{0,1\}[[:space:]]*$/\1/p' App/project.yml | head -n 1)"
+            source="App/project.yml"
+            if ! valid "${version}"; then
+              echo "::error title=Bad project.yml::could not read a usable MARKETING_VERSION from App/project.yml (got '${version}')"
+              exit 1
+            fi
+          fi
+
+          # 构建号取提交数：单调递增、可复现、不用回写仓库。手工从 Xcode 传过的那次是
+          # build 1，这里已经是两位数，不会撞号。
+          build="$(git rev-list --count HEAD)"
+          if [ -z "${build}" ] || [ "${build}" -lt 1 ]; then
+            echo "::error title=Bad build number::git rev-list --count HEAD returned '${build}'"
+            exit 1
+          fi
+
+          echo "marketing-version=${version}" >> "$GITHUB_OUTPUT"
+          echo "build-number=${build}" >> "$GITHUB_OUTPUT"
+          echo "version source: ${source}"
+          echo "MARKETING_VERSION=${version} CURRENT_PROJECT_VERSION=${build}"
+
+      - name: Check signing secrets
+        id: signing
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+          UPLOAD_INPUT: ${{ inputs.upload }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_API_KEY_P8 DIST_CERT_P12 DIST_CERT_PASSWORD; do
+            eval "value=\${${name}:-}"
+            if [ -z "${value}" ]; then missing="${missing} ${name}"; fi
+          done
+
+          signed=true
+          reason=""
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            # PR 拿不到 secrets，而且 PR 也绝不该往 TestFlight 推东西。
+            signed=false
+            reason="pull_request event"
+          elif [ -n "${missing}" ]; then
+            signed=false
+            reason="secrets not configured:${missing}"
+          fi
+
+          # upload 只有 workflow_dispatch 显式关掉时才是 false；tag push 默认上传。
+          destination="upload"
+          if [ "${UPLOAD_INPUT:-}" = "false" ]; then destination="export"; fi
+
+          {
+            echo "signed=${signed}"
+            echo "reason=${reason}"
+            echo "destination=${destination}"
+          } >> "$GITHUB_OUTPUT"
+          echo "signed=${signed} destination=${destination} reason=${reason:-none}"
+
+      - name: Generate Xcode project
+        working-directory: App
+        run: xcodegen generate
+
+      # ---------- 签名路径 ----------
+
+      - name: Create temporary keychain
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="${RUNNER_TEMP}/plsinput-signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          echo "::add-mask::${keychain_password}"
+          p12="${RUNNER_TEMP}/dist.p12"
+
+          printf '%s' "${DIST_CERT_P12}" | base64 --decode > "${p12}"
+          if [ ! -s "${p12}" ]; then
+            echo "::error title=Bad certificate::DIST_CERT_P12 did not decode into a non-empty file (is it base64 of the .p12?)"
+            exit 1
+          fi
+
+          security create-keychain -p "${keychain_password}" "${keychain}"
+          # 关掉自动上锁：一次归档加导出可能跑十几分钟，中途锁上 codesign 会去弹没人点的授权框。
+          security set-keychain-settings -lut 21600 "${keychain}"
+          security unlock-keychain -p "${keychain_password}" "${keychain}"
+          security import "${p12}" -k "${keychain}" -P "${DIST_CERT_PASSWORD}" -f pkcs12 \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "${p12}"
+          # 没有这一步，codesign 每次用私钥都要人点“允许”，在 runner 上表现为卡到超时。
+          security set-key-partition-list -S apple-tool:,apple: -s -k "${keychain_password}" "${keychain}" > /dev/null
+
+          existing="$(security list-keychains -d user | sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' | tr '\n' ' ')"
+          echo "existing user keychains: ${existing}"
+          # shellcheck disable=SC2086
+          security list-keychains -d user -s "${keychain}" ${existing}
+          security default-keychain -s "${keychain}"
+
+          echo "KEYCHAIN_PATH=${keychain}" >> "$GITHUB_ENV"
+
+      - name: Verify signing identity
+        if: steps.signing.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          identities="$(security find-identity -v -p codesigning "${KEYCHAIN_PATH}")"
+          echo "${identities}"
+          names="$(printf '%s\n' "${identities}" | sed -n 's/^[[:space:]]*[0-9][0-9]*) [0-9A-F][0-9A-F]* "\(.*\)"$/\1/p')"
+          count="$(printf '%s\n' "${names}" | grep -c . || true)"
+          if [ "${count}" != "1" ]; then
+            echo "::error title=Signing identity::expected exactly 1 codesigning identity in the temporary keychain, found ${count}"
+            exit 1
+          fi
+          case "${names}" in
+            "Apple Distribution: "*"(${TEAM_ID})") ;;
+            *)
+              echo "::error title=Signing identity::expected an Apple Distribution identity for team ${TEAM_ID}, got '${names}'"
+              exit 1
+              ;;
+          esac
+          echo "signing identity: ${names}"
+
+      - name: Write App Store Connect API key
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "${ASC_KEY_ID}" | grep -Eq '^[A-Za-z0-9]+$'; then
+            echo "::error title=Bad key id::ASC_KEY_ID must be alphanumeric (it becomes part of a file name)"
+            exit 1
+          fi
+          mkdir -p "${HOME}/private_keys"
+          chmod 700 "${HOME}/private_keys"
+          key_path="${HOME}/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "${ASC_API_KEY_P8}" > "${key_path}"
+          chmod 600 "${key_path}"
+          if ! grep -q 'BEGIN PRIVATE KEY' "${key_path}"; then
+            echo "::error title=Bad API key::ASC_API_KEY_P8 does not contain a PEM private key; paste the raw .p8 file contents"
+            exit 1
+          fi
+          echo "ASC_KEY_PATH=${key_path}" >> "$GITHUB_ENV"
+
+      - name: Archive (signed)
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          MARKETING_VERSION: ${{ steps.version.outputs.marketing-version }}
+          CURRENT_PROJECT_VERSION: ${{ steps.version.outputs.build-number }}
+        run: |
+          set -euo pipefail
+          mkdir -p .build
+          rm -rf "${ARCHIVE_PATH}"
+          archive() {
+            xcodebuild archive \
+              -project App/PlsInput.xcodeproj \
+              -scheme "${SCHEME}" \
+              -configuration Release \
+              -destination 'generic/platform=iOS' \
+              -archivePath "${ARCHIVE_PATH}" \
+              -derivedDataPath .build/DerivedData \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath "${ASC_KEY_PATH}" \
+              -authenticationKeyID "${ASC_KEY_ID}" \
+              -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
+              CODE_SIGN_STYLE=Automatic \
+              DEVELOPMENT_TEAM="${TEAM_ID}" \
+              MARKETING_VERSION="${MARKETING_VERSION}" \
+              CURRENT_PROJECT_VERSION="${CURRENT_PROJECT_VERSION}"
+          }
+          if command -v xcbeautify >/dev/null 2>&1; then
+            archive | tee .build/xcodebuild-archive.log | xcbeautify
+          else
+            archive | tee .build/xcodebuild-archive.log
+          fi
+          test -d "${ARCHIVE_PATH}/Products/Applications/${SCHEME}.app"
+
+      - name: Write ExportOptions.plist
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          DESTINATION: ${{ steps.signing.outputs.destination }}
+        run: |
+          set -euo pipefail
+          mkdir -p .build
+          # 键名与取值以 `xcodebuild -help` 里 "Available keys for -exportOptionsPlist" 为准：
+          #   method                          app-store-connect（旧名 app-store 已弃用）
+          #   destination                     upload 直接提交 ASC；export 只在本地出 ipa
+          #   signingStyle                    automatic，配合 -allowProvisioningUpdates 现签描述文件
+          #   manageAppVersionAndBuildNumber  false，版本号由本 workflow 说了算，不让 Xcode 改
+          cat > .build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>${DESTINATION}</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>${TEAM_ID}</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST
+          plutil -lint .build/ExportOptions.plist
+          cat .build/ExportOptions.plist
+
+      - name: Export archive
+        if: steps.signing.outputs.signed == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          # Xcode 打 ipa 的那一步内部调 /usr/bin/rsync（openrsync），openrsync 会再按 PATH
+          # fork 一个 server 端；PATH 里若排在前面的是 Homebrew 的 rsync 3.5.0，它不认
+          # openrsync 传过去的 --extended-attributes，整步只报一句 "exportArchive Copy failed"。
+          # 本地 macOS 26 + Xcode 27 上实测踩到过，把 /usr/bin 提到最前面就好了。
+          export PATH="/usr/bin:/bin:${PATH}"
+          echo "rsync in use: $(command -v rsync)"
+          rm -rf "${EXPORT_PATH}"
+          export_archive() {
+            xcodebuild -exportArchive \
+              -archivePath "${ARCHIVE_PATH}" \
+              -exportPath "${EXPORT_PATH}" \
+              -exportOptionsPlist .build/ExportOptions.plist \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath "${ASC_KEY_PATH}" \
+              -authenticationKeyID "${ASC_KEY_ID}" \
+              -authenticationKeyIssuerID "${ASC_ISSUER_ID}"
+          }
+          if command -v xcbeautify >/dev/null 2>&1; then
+            export_archive | tee .build/xcodebuild-export.log | xcbeautify
+          else
+            export_archive | tee .build/xcodebuild-export.log
+          fi
+          ls -lR "${EXPORT_PATH}" || true
+
+      # ---------- 不签名 dry run ----------
+
+      - name: Archive (unsigned dry run)
+        if: steps.signing.outputs.signed != 'true'
+        env:
+          MARKETING_VERSION: ${{ steps.version.outputs.marketing-version }}
+          CURRENT_PROJECT_VERSION: ${{ steps.version.outputs.build-number }}
+        run: |
+          set -euo pipefail
+          mkdir -p .build
+          rm -rf "${ARCHIVE_PATH}"
+          archive() {
+            xcodebuild archive \
+              -project App/PlsInput.xcodeproj \
+              -scheme "${SCHEME}" \
+              -configuration Release \
+              -destination 'generic/platform=iOS' \
+              -archivePath "${ARCHIVE_PATH}" \
+              -derivedDataPath .build/DerivedData \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              MARKETING_VERSION="${MARKETING_VERSION}" \
+              CURRENT_PROJECT_VERSION="${CURRENT_PROJECT_VERSION}"
+          }
+          if command -v xcbeautify >/dev/null 2>&1; then
+            archive | tee .build/xcodebuild-archive.log | xcbeautify
+          else
+            archive | tee .build/xcodebuild-archive.log
+          fi
+          test -d "${ARCHIVE_PATH}/Products/Applications/${SCHEME}.app"
+
+      - name: Package unsigned app
+        if: steps.signing.outputs.signed != 'true'
+        run: |
+          set -euo pipefail
+          ditto -c -k --sequesterRsrc --keepParent \
+            "${ARCHIVE_PATH}/Products/Applications/${SCHEME}.app" \
+            ".build/${SCHEME}-unsigned-app.zip"
+          ls -lh ".build/${SCHEME}-unsigned-app.zip"
+
+      # ---------- 产物与收尾 ----------
+
+      - name: Package dSYMs
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -d "${ARCHIVE_PATH}/dSYMs" ]; then
+            ditto -c -k --sequesterRsrc --keepParent \
+              "${ARCHIVE_PATH}/dSYMs" ".build/${SCHEME}-dSYMs.zip"
+            ls -lh ".build/${SCHEME}-dSYMs.zip"
+          else
+            echo "no dSYMs in the archive, skipping"
+          fi
+
+      - name: Write job summary
+        if: always()
+        env:
+          MARKETING_VERSION: ${{ steps.version.outputs.marketing-version }}
+          CURRENT_PROJECT_VERSION: ${{ steps.version.outputs.build-number }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+          DESTINATION: ${{ steps.signing.outputs.destination }}
+          REASON: ${{ steps.signing.outputs.reason }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Release build"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "| --- | --- |"
+            echo "| MARKETING_VERSION | \`${MARKETING_VERSION:-unknown}\` |"
+            echo "| CURRENT_PROJECT_VERSION | \`${CURRENT_PROJECT_VERSION:-unknown}\` |"
+            echo "| Xcode | \`${XCODE_VERSION}\` |"
+            if [ "${SIGNED:-}" = "true" ]; then
+              if [ "${DESTINATION:-}" = "upload" ]; then
+                echo "| 模式 | signed, uploaded to App Store Connect / TestFlight |"
+              else
+                echo "| 模式 | signed, exported .ipa only (upload=false) |"
+              fi
+            else
+              echo "| 模式 | unsigned dry run, upload skipped: ${REASON:-unknown} |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up signing material
+        if: always()
+        run: |
+          set +e
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "${KEYCHAIN_PATH}"
+            rm -f "${KEYCHAIN_PATH}"
+          fi
+          if [ -n "${ASC_KEY_PATH:-}" ]; then
+            rm -f "${ASC_KEY_PATH}"
+          fi
+          rm -rf "${HOME}/private_keys"
+          rm -f "${RUNNER_TEMP}/dist.p12"
+          exit 0
+
+      - name: Upload ipa
+        if: steps.signing.outputs.signed == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: plsinput-ipa
+          path: .build/export/**
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload unsigned app
+        if: steps.signing.outputs.signed != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: plsinput-unsigned-app
+          path: .build/PlsInput-unsigned-app.zip
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload dSYMs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: plsinput-dsyms
+          path: .build/PlsInput-dSYMs.zip
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcodebuild-logs
+          path: .build/*.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  github-release:
+    name: GitHub Release
+    # 只有 tag push 建 Release；不签名模式下也照建，方便先把发版链路跑通。
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download dSYMs
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: plsinput-dsyms
+          path: release-assets
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "release ${TAG} already exists, nothing to do" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          asset="release-assets/PlsInput-dSYMs.zip"
+          if [ -f "${asset}" ]; then
+            gh release create "${TAG}" --generate-notes --title "${TAG}" "${asset}"
+          else
+            echo "no dSYM zip for this run, creating the release without assets"
+            gh release create "${TAG}" --generate-notes --title "${TAG}"
+          fi
+          echo "created release ${TAG}: $(gh release view "${TAG}" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
