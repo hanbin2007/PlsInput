@@ -1,3 +1,14 @@
+# PlsInput 远程配置发布
+#
+# 两个任务：
+#   validate  macos-26，跑和 CI 完全相同的 scripts/ci/config-gate.sh
+#             （整份 RemoteConfig 解码 + 平衡门禁 + 未来生效档），
+#             检的就是这次要发的那个 revision
+#   deploy    ubuntu，ssh 推给服务器上的 forced-command 接收器，再 curl 回读比对
+#
+# 触发条件：push 到 main 且改到 remote/config.json 或本文件，或者手工 workflow_dispatch。
+#
+# 所有 actions/* 都钉在完整 commit SHA 上（后面的 # vX.Y.Z 只是给人看的）。
 name: Deploy remote config
 
 on:
@@ -16,8 +27,52 @@ concurrency:
   group: config-deploy
   cancel-in-progress: false
 
+env:
+  # 和 ci.yml / release.yml 的 XCODE_VERSION 保持一致，换 Xcode 时三处一起改。
+  XCODE_VERSION: "26.6"
+
 jobs:
+  validate:
+    name: Validate remote/config.json
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+          install-xcodegen: "false"
+
+      # -s 把整个输入读成一个数组：多份拼接的 JSON 文档在这里 length > 1，直接红。
+      - name: Quick JSON check
+        run: |
+          set -euo pipefail
+          jq -s -e 'length == 1 and (.[0] | type) == "object" and (.[0].schemaVersion == 1)' \
+            remote/config.json > /dev/null
+          echo "remote/config.json: exactly one JSON object, schemaVersion == 1, $(wc -c < remote/config.json) bytes"
+
+      # 和 ci.yml 的 config-check 跑的是同一个脚本、同一套门禁。
+      - name: Balance regression gate
+        run: bash scripts/ci/config-gate.sh remote/config.json
+
+      - name: Upload bot report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: plsbot-report-deploy
+          path: .build/config-gate/**
+          retention-days: 7
+          if-no-files-found: ignore
+
   deploy:
+    name: Deploy to kn.origenclub.cn
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
@@ -25,13 +80,14 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Validate remote/config.json
+      - name: Quick JSON check
         run: |
-          jq empty remote/config.json
-          jq -e '.schemaVersion == 1' remote/config.json > /dev/null
-          echo "remote/config.json: valid JSON, schemaVersion == 1, $(wc -c < remote/config.json) bytes"
+          set -euo pipefail
+          jq -s -e 'length == 1 and (.[0] | type) == "object" and (.[0].schemaVersion == 1)' \
+            remote/config.json > /dev/null
+          echo "remote/config.json: exactly one JSON object, schemaVersion == 1, $(wc -c < remote/config.json) bytes"
 
       - name: Check deploy secrets
         id: secrets
