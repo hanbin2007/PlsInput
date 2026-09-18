@@ -1,0 +1,278 @@
+# PlsInput 持续集成
+#
+# 四个任务：
+#   core-tests   SwiftPM 库与测试（不碰模拟器）
+#   app-build    XcodeGen 生成工程 + 编译 iOS 模拟器版 App，产物给 sim-smoke 用
+#   config-check 校验 remote/config.json，并用 plsbot 跑一遍平衡回归门禁
+#   sim-smoke    把 App 装进模拟器跑一小段脚本，确认没有当场崩溃（容许失败）
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # 工具链版本集中在这里，换 Xcode 只改这一行（runs-on 的镜像标签不能用 env，需要另外改）。
+  XCODE_VERSION: "26.6"
+  BUNDLE_ID: cn.origenclub.plsinput
+  SCHEME: PlsInput
+
+jobs:
+  core-tests:
+    name: Core tests (SwiftPM)
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+          install-xcodegen: "false"
+
+      - name: Swift build
+        run: swift build --build-tests
+
+      - name: Swift test
+        run: swift test
+
+  app-build:
+    name: App build (iOS Simulator)
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Generate Xcode project
+        working-directory: App
+        run: xcodegen generate
+
+      - name: Build app
+        run: |
+          set -euo pipefail
+          mkdir -p .build
+          build() {
+            xcodebuild \
+              -project App/PlsInput.xcodeproj \
+              -scheme "${SCHEME}" \
+              -destination 'generic/platform=iOS Simulator' \
+              -configuration Debug \
+              CODE_SIGNING_ALLOWED=NO \
+              -derivedDataPath .build/DerivedData \
+              build
+          }
+          if command -v xcbeautify >/dev/null 2>&1; then
+            build | tee .build/xcodebuild.log | xcbeautify
+          else
+            build | tee .build/xcodebuild.log
+          fi
+
+      - name: Package app
+        run: |
+          set -euo pipefail
+          products=.build/DerivedData/Build/Products/Debug-iphonesimulator
+          test -d "${products}/${SCHEME}.app"
+          tar -czf "${SCHEME}-sim.tar.gz" -C "${products}" "${SCHEME}.app"
+          ls -lh "${SCHEME}-sim.tar.gz"
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plsinput-sim-app
+          path: PlsInput-sim.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: .build/xcodebuild.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  config-check:
+    name: Remote config check
+    runs-on: macos-26
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+          install-xcodegen: "false"
+
+      - name: Validate JSON
+        run: |
+          set -euo pipefail
+          jq empty remote/config.json
+          echo "schemaVersion=$(jq -r '.schemaVersion' remote/config.json)"
+          echo "configVersion=$(jq -r '.configVersion' remote/config.json)"
+          echo "minAppBuild=$(jq -r '.minAppBuild' remote/config.json)"
+          echo "balance entries=$(jq -r '.balance | length' remote/config.json)"
+
+      - name: Run plsbot
+        run: |
+          set -euo pipefail
+          swift run -c release plsbot \
+            --config remote/config.json \
+            --days 14 \
+            --random 200 \
+            --json bot-report.json | tee plsbot.log
+          test -s bot-report.json
+
+      - name: Balance regression gate
+        run: |
+          set -euo pipefail
+          # 门禁三条（当前配置留有余量，见 README）：
+          #   1. 没有任何一局以 keysExhausted（键全报废）结束
+          #   2. 至少 95% 的种子跨过 T3
+          #   3. 峰值 slog10 的中位数不低于 3.0
+          read -r total dead t3_rate median_slog min_tier min_slog < <(
+            jq -r '
+              length as $n
+              | ([.[] | select(.endReason == "keysExhausted")] | length) as $dead
+              | ([.[] | select(.tiersCrossed >= 3)] | length) as $t3
+              | ([.[].peakSlog] | sort) as $slog
+              | [$n, $dead, ($t3 / $n * 100), $slog[($n / 2 | floor)], ([.[].tiersCrossed] | min), $slog[0]]
+              | @tsv' bot-report.json
+          )
+          printf '总局数 %s，keysExhausted %s，跨 T3 率 %.1f%%，中位 slog %.3f，最低跨档 %s，最低 slog %.3f\n' \
+            "$total" "$dead" "$t3_rate" "$median_slog" "$min_tier" "$min_slog"
+
+          status=pass
+          verdict() { awk -v a="$1" -v b="$2" -v op="$3" 'BEGIN { exit !(op == "ge" ? a >= b : a <= b) }'; }
+          fail() { status=fail; echo "::error title=Balance gate::$1"; }
+
+          verdict "$dead" 0 le || fail "有 ${dead} 局以 keysExhausted 结束，配置把人逼死了"
+          verdict "$t3_rate" 95 ge || fail "跨 T3 率只有 ${t3_rate}%，低于 95%"
+          verdict "$median_slog" 3.0 ge || fail "峰值 slog10 中位数只有 ${median_slog}，低于 3.0"
+
+          {
+            echo "### remote/config.json 平衡门禁"
+            echo ""
+            echo "样本：今天起 14 个每日种子 + 200 个随机种子（plsbot 贪心机器人）"
+            echo ""
+            echo "| 指标 | 当前值 | 门槛 | 结果 |"
+            echo "| --- | ---: | ---: | :---: |"
+            printf '| keysExhausted 局数 | %s | = 0 | %s |\n' "$dead" "$(verdict "$dead" 0 le && echo '✅' || echo '❌')"
+            printf '| 跨 T3 率 | %.1f%% | ≥ 95%% | %s |\n' "$t3_rate" "$(verdict "$t3_rate" 95 ge && echo '✅' || echo '❌')"
+            printf '| 峰值 slog10 中位数 | %.3f | ≥ 3.0 | %s |\n' "$median_slog" "$(verdict "$median_slog" 3.0 ge && echo '✅' || echo '❌')"
+            printf '| 总局数 / 最低跨档 / 最低 slog | %s / T%s / %.3f | 仅供参考 | - |\n' "$total" "$min_tier" "$min_slog"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$status" = pass ]
+
+      - name: Upload bot report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plsbot-report
+          path: |
+            bot-report.json
+            plsbot.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  sim-smoke:
+    name: Simulator smoke
+    needs: app-build
+    runs-on: macos-26
+    timeout-minutes: 25
+    # 模拟器启动本身偶发失败，这一关只作参考，不卡 PR。
+    continue-on-error: true
+    steps:
+      - name: Download app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plsinput-sim-app
+
+      - name: Unpack app
+        run: |
+          set -euo pipefail
+          tar -xzf "${SCHEME}-sim.tar.gz"
+          ls -d "${SCHEME}.app"
+
+      - name: Boot simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          udid="$(xcrun simctl list devices available -j | jq -r '
+            .devices
+            | to_entries
+            | map(select(.key | test("iOS")))
+            | sort_by(.key)
+            | reverse
+            | .[0].value
+            | map(select(.name | startswith("iPhone")))
+            | .[0].udid')"
+          if [ -z "${udid}" ] || [ "${udid}" = "null" ]; then
+            echo "::error title=No simulator::this image has no available iPhone simulator"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "booting ${udid}"
+          xcrun simctl boot "${udid}" || true
+          xcrun simctl bootstatus "${udid}" -b
+          echo "udid=${udid}" >> "$GITHUB_OUTPUT"
+
+      - name: Install and launch
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          set -euo pipefail
+          xcrun simctl install "${UDID}" "${SCHEME}.app"
+          # 脚本语法见 App/Sources/PlsInputApp.swift 的 LaunchArguments：
+          # w<秒> 等待，k<键序号> 按键，s<格序号> 选格。这里只填两格，不结束对局。
+          output="$(xcrun simctl launch "${UDID}" "${BUNDLE_ID}" \
+            --skip-tutorial --autostart-practice --seed 1 --script "w1,k0,s0,k1,s1,w2")"
+          echo "${output}"
+          pid="$(echo "${output}" | awk -F': ' '{print $2}')"
+          echo "PLSINPUT_PID=${pid}" >> "$GITHUB_ENV"
+
+      - name: Assert still running
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          set -euo pipefail
+          sleep 8
+          mkdir -p artifacts
+          xcrun simctl io "${UDID}" screenshot artifacts/smoke.png || true
+          xcrun simctl spawn "${UDID}" launchctl list | grep -i plsinput || true
+          if ps -p "${PLSINPUT_PID}" > /dev/null 2>&1; then
+            echo "app (pid ${PLSINPUT_PID}) is still alive after 8s"
+          else
+            echo "::error title=Smoke failed::app exited within 8s, see the crash log below"
+            find ~/Library/Logs/DiagnosticReports -name '*PlsInput*' -maxdepth 1 -print -exec cat {} \; 2>/dev/null || true
+            exit 1
+          fi
+
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-smoke-screenshot
+          path: artifacts/smoke.png
+          retention-days: 7
+          if-no-files-found: warn
