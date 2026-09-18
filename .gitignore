@@ -16,3 +16,8 @@ Package.resolved
 
 # Claude worktrees
 .claude/worktrees/
+
+# Editor swap files
+*.swp
+*.swo
+*~
