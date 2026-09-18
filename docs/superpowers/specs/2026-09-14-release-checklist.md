@@ -23,6 +23,7 @@
 ## 远程配置托管
 
 - 地址：`https://kn.origenclub.cn/plsinput/config.json`（阿里云 ECS，走现有 kn-deploy 流程发布静态文件）。源文件在仓库 `remote/config.json`。
+- **服务器侧尚未配置，上架前必须先做**：照 `ops/server/README.md` 六步跑一遍（生成部署密钥 → root 跑 `setup-plsinput-hosting.sh` → 手工发一次 → 负面测试 → 配 GitHub secrets → 触发 workflow）。配好之后 `remote/config.json` 合进 `main` 即由 `.github/workflows/config.yml` 自动发布并回读校验；原理与回滚见 `docs/ops/remote-config.md`。
 - 只读、无鉴权。发布新平衡参数时，`applyFrom` 至少设为明天，避免当天玩家拿到不同的题。
 - 上线前用 `plsbot` 把未来数百天的种子全跑一遍，排查坏题；发现坏题用 `dayOverrides` 的 `seedSalt` 替换。
 
