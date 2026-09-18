@@ -1,0 +1,82 @@
+name: Deploy remote config
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - remote/config.json
+      - .github/workflows/config.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: config-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate remote/config.json
+        run: |
+          jq empty remote/config.json
+          jq -e '.schemaVersion == 1' remote/config.json > /dev/null
+          echo "remote/config.json: valid JSON, schemaVersion == 1, $(wc -c < remote/config.json) bytes"
+
+      - name: Check deploy secrets
+        id: secrets
+        env:
+          DEPLOY_KEY: ${{ secrets.KN_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.KN_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -n "$DEPLOY_KEY" ] && [ -n "$KNOWN_HOSTS" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip deploy (secrets not configured)
+        if: steps.secrets.outputs.configured != 'true'
+        run: |
+          echo "secrets not configured, skipping deploy" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Set KN_DEPLOY_SSH_KEY and KN_DEPLOY_KNOWN_HOSTS — see ops/server/README.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy over ssh
+        if: steps.secrets.outputs.configured == 'true'
+        env:
+          DEPLOY_KEY: ${{ secrets.KN_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.KN_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          ssh -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o IdentitiesOnly=yes \
+              -o ConnectTimeout=15 \
+              -i ~/.ssh/id_ed25519 \
+              plsinput@kn.origenclub.cn < remote/config.json
+
+      - name: Verify what the server actually serves
+        if: steps.secrets.outputs.configured == 'true'
+        run: |
+          curl -fsS --max-time 20 --retry 3 --retry-delay 3 \
+            "https://kn.origenclub.cn/plsinput/config.json" | diff - remote/config.json
+          echo "deployed remote/config.json to https://kn.origenclub.cn/plsinput/config.json (served copy matches the repo)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wipe the deploy key from the runner
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519
