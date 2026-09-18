@@ -81,7 +81,18 @@ xcrun simctl launch <UDID> cn.origenclub.plsinput \
 
 工具链由 `.github/actions/setup-toolchain` 这个 composite action 统一准备：选 Xcode、按需装 XcodeGen、打印版本号，release 与配置发布流程复用同一个入口。CI 跑在 `macos-26` 镜像（GA，非 beta）上，Xcode 固定为 26.6，XcodeGen 由 Homebrew 装到 2.46.0，App 编译约 45 秒。
 
-另外两条流水线由并行的另一路编写：`release.yml` 负责打 `v*` tag 时上传 TestFlight，`config.yml` 负责发布远程配置，细节见各自 workflow 文件。
+另外两条流水线：
+
+`.github/workflows/release.yml`（`Release`）在推 `v*` tag、手动触发、以及改到它自己或 composite action 的 PR 上跑：
+
+| 任务 | 做什么 |
+| --- | --- |
+| `Archive and upload` | 临时钥匙串导入 Apple Distribution 证书 → 写 App Store Connect API key → `xcodegen generate` → Release 配置 `xcodebuild archive`（`generic/platform=iOS`）→ `-exportArchive` 按 `app-store-connect` 导出，默认 `destination=upload` 直传 TestFlight；`MARKETING_VERSION` 取自 tag（去掉 `v`），`CURRENT_PROJECT_VERSION` 取 `git rev-list --count HEAD`，两者都以 xcodebuild 参数覆盖，不改 `App/project.yml` |
+| `GitHub Release` | 只在 tag 上跑，`gh release create --generate-notes` 并挂上 dSYM 压缩包；Release 已存在就跳过 |
+
+五个签名 secret（`ASC_KEY_ID` / `ASC_ISSUER_ID` / `ASC_API_KEY_P8` / `DIST_CERT_P12` / `DIST_CERT_PASSWORD`）缺任何一个、或触发事件是 pull request 时，流水线自动退化成**不签名 dry run**：用 `CODE_SIGNING_ALLOWED=NO` 归档一遍证明 Release 配置编得过，绿灯结束，绝不上传。怎么发版、secrets 怎么准备、怎么空跑、出错怎么查，见 [发版手册](docs/ops/release.md)。
+
+`.github/workflows/config.yml`（`Deploy remote config`）在 `remote/config.json` 合进 `main` 时把它 ssh 推到 `kn.origenclub.cn`，再 `curl` 回读跟仓库文件 `diff`，不一致就红灯。链路、缓存时长与回滚见 [远程配置手册](docs/ops/remote-config.md)。
 
 ## 设计文档
 
