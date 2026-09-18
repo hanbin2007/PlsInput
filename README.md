@@ -24,7 +24,7 @@ docs/superpowers/specs/       设计文档与上架检查清单
 
 环境要求：
 
-- Xcode 27（App 代码按 Xcode 27 SDK 写成，GameKit 的 async 方法在该 SDK 下是 `nonisolated(nonsending)`）
+- Xcode 27（开发基线，App 代码按 Xcode 27 SDK 写成，GameKit 的 async 方法在该 SDK 下是 `nonisolated(nonsending)`）。CI 上用 Xcode 26.6（Swift 6.3.3）同样编得过，所以 26.6 也够用
 - XcodeGen 2.46 以上（`brew install xcodegen`），`.xcodeproj` 由 `project.yml` 生成，不提交到仓库
 - iOS 17 以上的模拟器或真机，Swift 6 严格并发
 
@@ -79,7 +79,7 @@ xcrun simctl launch <UDID> cn.origenclub.plsinput \
 2. 至少 95% 的种子跨过 T3
 3. 峰值 slog10 的中位数不低于 3.0
 
-工具链由 `.github/actions/setup-toolchain` 这个 composite action 统一准备：选 Xcode、按需装 XcodeGen、打印版本号，release 与配置发布流程复用同一个入口。CI 跑在 `macos-26` 镜像上，Xcode 固定为 26.6。
+工具链由 `.github/actions/setup-toolchain` 这个 composite action 统一准备：选 Xcode、按需装 XcodeGen、打印版本号，release 与配置发布流程复用同一个入口。CI 跑在 `macos-26` 镜像（GA，非 beta）上，Xcode 固定为 26.6，XcodeGen 由 Homebrew 装到 2.46.0，App 编译约 45 秒。
 
 另外两条流水线由并行的另一路编写：`release.yml` 负责打 `v*` tag 时上传 TestFlight，`config.yml` 负责发布远程配置，细节见各自 workflow 文件。
 
