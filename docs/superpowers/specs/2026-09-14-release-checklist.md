@@ -8,6 +8,7 @@
 - Team ID：`NCLY9ZGRMZ`（Apple Distribution: Hanbin Zhang），已写入 `App/project.yml` 的 `DEVELOPMENT_TEAM`。
 - Bundle ID：`cn.origenclub.plsinput`，需在开发者后台的 App ID 上开启 Game Center 能力，并生成带该 entitlement 的描述文件。本地构建用 `CODE_SIGNING_ALLOWED=NO`，签名未经验证。
 - 提审必须用正式版 Xcode 或 RC 重新签名归档。
+- 签名归档与 TestFlight 上传现在由 `.github/workflows/release.yml` 做（runner 上固定 Xcode 26.6 正式版）。打 tag 发版、五个签名 secret 怎么准备、怎么空跑一遍：见 [`docs/ops/release.md`](../../ops/release.md)。
 
 ## Game Center 排行榜（App Store Connect）
 
