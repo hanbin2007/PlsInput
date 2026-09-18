@@ -10,12 +10,13 @@
 #   1. 检查 / 的剩余空间（< 500 MB 直接停）
 #   2. 记录 nginx -t 基线（本来就红就停，那是既有问题，不背锅）
 #   3. 拿 /opt/ops/.deploy.lock（flock -n，拿不到就报 BUSY 退出）
-#   4. 建系统用户 plsinput、目录 /opt/plsinput/{www,bin}
-#   5. 安装 receive-config（同目录下的 receive-config.sh）
+#   4. 建系统用户 plsinput、目录 /opt/plsinput/{www,bin,.ssh}
+#      —— 只有 www 归 plsinput，其余全是 root:root，plsinput 改不了自己的 authorized_keys
+#   5. 安装 receive-config（同目录下的 receive-config.sh），先写 .new 再 mv 覆盖
 #   6. 写 authorized_keys：restrict + forced command，只允许跑 receive-config
 #   7. 往 kn-site.conf 的 443 server 块插 location /plsinput/，nginx -t 通过才 reload，
-#      失败立刻用 change-record 里的副本还原并复验
-#   8. 健康检查：主站 / analytics /healthz / 本次新增的 /plsinput/config.json
+#      nginx -t 或 reload 任一失败都立刻用 change-record 里的副本还原并复验
+#   8. 健康检查：主站 / 与 /plsinput/config.json 必须正常（/healthz 只打印不断言）
 #
 # 本脚本不会碰 /opt/kungkingkao-site（主站静态目录，current 软链每次发布都被换掉）。
 set -euo pipefail
@@ -237,15 +238,26 @@ else
     useradd --system --create-home --home-dir "$PLS_HOME" --shell /bin/bash "$PLS_USER"
     say "  created system user $PLS_USER (home $PLS_HOME, shell /bin/bash)"
 fi
-install -d -o "$PLS_USER" -g "$PLS_USER" -m 755 "$PLS_HOME"
+# plsinput 只该拥有 www 一个目录。家目录、.ssh、bin 全归 root：
+# 这样 plsinput 即使被拿下也改不了自己的 authorized_keys（换不掉 forced command），
+# 也换不掉接收器本身。sshd 的 StrictModes 认 root 拥有的路径（属主是 root 或用户本人、
+# 且非 group/other 可写即可），所以 755 的 root:root .ssh + 644 的 authorized_keys 合法。
+install -d -o root -g root -m 755 "$PLS_HOME"
 install -d -o "$PLS_USER" -g "$PLS_USER" -m 755 "$WWW_DIR"
 install -d -o root -g root -m 755 "$BIN_DIR"
-install -d -o "$PLS_USER" -g "$PLS_USER" -m 700 "$SSH_DIR"
-say "  $PLS_HOME 755 $PLS_USER | $WWW_DIR 755 $PLS_USER | $BIN_DIR 755 root | $SSH_DIR 700 $PLS_USER"
+install -d -o root -g root -m 755 "$SSH_DIR"
+# 老版本装出来的是 plsinput:plsinput 的 $PLS_HOME 和 0700 的 .ssh，重跑时纠正过来。
+chown root:root "$PLS_HOME" "$BIN_DIR" "$SSH_DIR"
+chmod 755 "$PLS_HOME" "$BIN_DIR" "$SSH_DIR"
+chown "$PLS_USER:$PLS_USER" "$WWW_DIR"
+chmod 755 "$WWW_DIR"
+say "  $PLS_HOME 755 root | $WWW_DIR 755 $PLS_USER | $BIN_DIR 755 root | $SSH_DIR 755 root"
 
 # ---------------------------------------------------------------- 5. 接收脚本
 say "step 5/8: installing the forced-command receiver"
-install -o root -g root -m 755 "$SRC_RECEIVER" "$RECEIVER"
+# 先写 .new 再 mv 覆盖：install 直接写目标文件的话，正在被 sshd 执行的那一份会被
+# 就地改写（同一个 inode），半路替换的脚本会以奇怪的方式失败。mv 是换 inode，原子。
+install -o root -g root -m 755 "$SRC_RECEIVER" "$RECEIVER.new" && mv -f "$RECEIVER.new" "$RECEIVER"
 say "  installed $RECEIVER (root:root 0755 — the plsinput user cannot modify it)"
 if command -v jq >/dev/null 2>&1; then
     say "  jq present: $(jq --version)"
@@ -258,9 +270,11 @@ fi
 # ---------------------------------------------------------------- 6. authorized_keys
 say "step 6/8: writing $AUTH_KEYS"
 printf 'restrict,command="%s" %s\n' "$RECEIVER" "$PUBKEY" > "$AUTH_KEYS"
-chown "$PLS_USER:$PLS_USER" "$AUTH_KEYS"
-chmod 600 "$AUTH_KEYS"
-say "  one line, restrict + forced command; any client command is ignored"
+# root:root 0644：plsinput 只能读，改不了。sshd 读 authorized_keys 是以 root 身份读的，
+# StrictModes 只要求属主是 root 或该用户、且非 group/other 可写，644 root:root 满足。
+chown root:root "$AUTH_KEYS"
+chmod 644 "$AUTH_KEYS"
+say "  one line, restrict + forced command; any client command is ignored (root:root 0644)"
 
 SSHD_FILES=(/etc/ssh/sshd_config)
 shopt -s nullglob
@@ -291,8 +305,26 @@ ORIG="$CHANGE_DIR/$TS-kn-site.conf.orig"
 cp -p "$NGINX_CONF" "$ORIG"
 say "  original conf saved to $ORIG (this is the restore copy)"
 
+# nginx -t 失败、reload 失败，都走同一条还原路径：拷回 .orig，再 nginx -t 复验，然后 die。
+restore_conf() {
+    warn "$1 — restoring $ORIG"
+    cp -p "$ORIG" "$NGINX_CONF"
+    if nginx -t; then
+        die "$2 Original conf restored and nginx -t is green again. /plsinput/ was NOT configured — inspect the conf and insert the block manually."
+    else
+        die "$2 Original conf restored but nginx -t STILL fails. Compare $NGINX_CONF with $ORIG by hand RIGHT NOW; do not reload nginx until it is green."
+    fi
+}
+
 if grep -q 'location /plsinput/' "$NGINX_CONF"; then
     say "  location /plsinput/ already present; $NGINX_CONF left untouched, no reload"
+    # 重跑时也要复验一次：这个脚本什么都没改，nginx -t 却红了，说明别人动过配置，
+    # 下一个 reload（谁的都算）会把线上打翻，必须当场喊出来。
+    if nginx -t; then
+        say "  nginx -t is still green (this run changed nothing)"
+    else
+        die "nginx -t FAILS although this run changed nothing. Someone else edited the config since the last reload; the next reload by anyone will break the site. Fix it before doing anything else."
+    fi
 else
     NEW_CONF="$(mktemp)"
     if ! render_conf "$NGINX_CONF" "$NEW_CONF"; then
@@ -306,27 +338,45 @@ else
     say "  inserted location /plsinput/ immediately before the analytics include"
     if nginx -t; then
         say "  nginx -t passed; reloading"
-        systemctl reload nginx
-        say "  nginx reloaded"
-    else
-        warn "nginx -t FAILED after the edit — restoring $ORIG"
-        cp -p "$ORIG" "$NGINX_CONF"
-        if nginx -t; then
-            die "original conf restored and nginx -t is green again; nginx was NOT reloaded, so nothing is broken. /plsinput/ was not configured — inspect the conf and insert the block manually."
+        if systemctl reload nginx; then
+            say "  nginx reloaded"
         else
-            die "original conf restored but nginx -t STILL fails. Compare $NGINX_CONF with $ORIG by hand RIGHT NOW; do not reload nginx until it is green."
+            restore_conf "systemctl reload nginx FAILED" \
+                "The reload never took, so the running nginx still serves the OLD config and nothing is broken. Check 'systemctl status nginx' and 'journalctl -u nginx -n 50'."
         fi
+    else
+        restore_conf "nginx -t FAILED after the edit" \
+            "nginx was NOT reloaded, so nothing is broken."
     fi
 fi
 
 # ---------------------------------------------------------------- 8. 健康检查
 say "step 8/8: health checks"
-for URL in "https://$DOMAIN/" "https://$DOMAIN/healthz" "https://$DOMAIN/plsinput/config.json"; do
-    CODE="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$URL" 2>/dev/null || echo "000")"
-    printf '  %-48s %s\n' "$URL" "$CODE"
-done
-say "  expected right now: / = 200, /healthz = 200, /plsinput/config.json = 404"
-say "  the 404 is normal until the first deploy writes $WWW_DIR/config.json"
+probe() {
+    curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$1" 2>/dev/null || echo "000"
+}
+ROOT_CODE="$(probe "https://$DOMAIN/")"
+HEALTHZ_CODE="$(probe "https://$DOMAIN/healthz")"
+CONFIG_CODE="$(probe "https://$DOMAIN/plsinput/config.json")"
+printf '  %-48s %s\n' "https://$DOMAIN/" "$ROOT_CODE"
+printf '  %-48s %s\n' "https://$DOMAIN/healthz" "$HEALTHZ_CODE"
+printf '  %-48s %s\n' "https://$DOMAIN/plsinput/config.json" "$CONFIG_CODE"
+
+# /healthz 不是本项目的东西，这台机器上它目前就是 404。只打印，不拿它当判据。
+say "  /healthz = $HEALTHZ_CODE (informational only: /healthz is not owned by this project and currently 404s on this box)"
+
+[ "$ROOT_CODE" = "200" ] || die "https://$DOMAIN/ returned $ROOT_CODE, expected 200 — the main site is not healthy, stop and investigate before deploying anything"
+case "$CONFIG_CODE" in
+    200)
+        say "  /plsinput/config.json = 200: a config is already being served (the normal result when re-running this script)"
+        ;;
+    404)
+        say "  /plsinput/config.json = 404: nothing deployed yet, normal on a first install — it becomes 200 after the first deploy writes $WWW_DIR/config.json"
+        ;;
+    *)
+        die "https://$DOMAIN/plsinput/config.json returned $CONFIG_CODE, expected 200 (already deployed) or 404 (not deployed yet) — the nginx location is wrong or something else is answering that path"
+        ;;
+esac
 
 say "done. Next, from the Mac:"
 say "  ssh -i ~/.ssh/plsinput_deploy $PLS_USER@$DOMAIN < remote/config.json"
