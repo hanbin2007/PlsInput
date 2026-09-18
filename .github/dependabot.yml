@@ -1,0 +1,15 @@
+# 只盯 GitHub Actions 的版本更新；Swift 侧没有外部依赖，不需要别的 ecosystem。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies

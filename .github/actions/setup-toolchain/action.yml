@@ -1,0 +1,103 @@
+# PlsInput 工具链准备（composite action）
+#
+# 作用：在 macOS runner 上选定 Xcode、按需安装 XcodeGen，并把工具链版本打进日志。
+# ci.yml / release.yml / config.yml 共用这一个入口，换 Xcode 只改调用处的入参。
+#
+# 输入
+#   xcode-version     想用的 Xcode 版本，对应 /Applications/Xcode_<ver>.app；
+#                     找不到精确匹配时按 Xcode_<ver>* 取版本号最大的一个；
+#                     仍找不到就退回镜像默认 Xcode 并发一条 warning（不会让步骤失败）。
+#                     传 "default" 或空串表示不切换，直接用镜像默认 Xcode。默认 "26.6"。
+#   install-xcodegen  是否用 Homebrew 安装 XcodeGen（"true" / "false"）。默认 "true"。
+#                     只跑 SwiftPM 的任务传 "false"，能省掉一次 brew 安装。
+#
+# 输出
+#   xcode-path        最终选中的 Xcode.app 路径，例如 /Applications/Xcode_26.6.app
+#   xcode-version     实际生效的 xcodebuild 版本号，例如 26.6
+#   xcodegen-version  安装到的 XcodeGen 版本；没装时为空串
+#
+# 副作用
+#   sudo xcode-select -s 切换全局 Xcode，并把 DEVELOPER_DIR 写进 $GITHUB_ENV，
+#   所以同一 job 里后续所有 step（含 swift / xcodebuild / xcrun）都落在同一个 Xcode 上。
+#
+# 限制：只支持 macOS runner。
+name: Setup toolchain
+description: Select an Xcode version, install XcodeGen, and print toolchain versions.
+
+inputs:
+  xcode-version:
+    description: 'Xcode version to select, e.g. "26.6". Use "default" to keep the image default.'
+    required: false
+    default: "26.6"
+  install-xcodegen:
+    description: 'Install XcodeGen via Homebrew ("true" or "false").'
+    required: false
+    default: "true"
+
+outputs:
+  xcode-path:
+    description: Path of the selected Xcode.app
+    value: ${{ steps.select-xcode.outputs.path }}
+  xcode-version:
+    description: Version reported by xcodebuild after selection
+    value: ${{ steps.select-xcode.outputs.version }}
+  xcodegen-version:
+    description: Installed XcodeGen version (empty when not installed)
+    value: ${{ steps.install-xcodegen.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode
+      id: select-xcode
+      shell: bash
+      env:
+        WANTED_XCODE: ${{ inputs.xcode-version }}
+      run: |
+        set -euo pipefail
+        current_app() { xcode-select -p | sed 's:/Contents/Developer::'; }
+
+        if [ -z "${WANTED_XCODE}" ] || [ "${WANTED_XCODE}" = "default" ]; then
+          app="$(current_app)"
+        else
+          app=""
+          for candidate in "/Applications/Xcode_${WANTED_XCODE}.app" "/Applications/Xcode_${WANTED_XCODE}.0.app"; do
+            if [ -d "${candidate}" ]; then app="${candidate}"; break; fi
+          done
+          if [ -z "${app}" ]; then
+            app="$(ls -d /Applications/Xcode_${WANTED_XCODE}*.app 2>/dev/null | sort -V | tail -n 1 || true)"
+          fi
+          if [ -z "${app}" ]; then
+            echo "::warning title=Xcode not found::Xcode ${WANTED_XCODE} is not on this image, falling back to the default"
+            ls -d /Applications/Xcode*.app || true
+            app="$(current_app)"
+          fi
+        fi
+
+        sudo xcode-select -s "${app}/Contents/Developer"
+        echo "DEVELOPER_DIR=${app}/Contents/Developer" >> "$GITHUB_ENV"
+        echo "path=${app}" >> "$GITHUB_OUTPUT"
+        echo "version=$(xcodebuild -version | head -n 1 | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+    - name: Install XcodeGen
+      id: install-xcodegen
+      if: inputs.install-xcodegen == 'true'
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+        HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      run: |
+        set -euo pipefail
+        if ! command -v xcodegen >/dev/null 2>&1; then
+          brew install xcodegen
+        fi
+        echo "version=$(xcodegen --version | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
+
+    - name: Print toolchain versions
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "DEVELOPER_DIR=${DEVELOPER_DIR:-unset}"
+        xcodebuild -version
+        swift --version
+        if command -v xcodegen >/dev/null 2>&1; then xcodegen --version; else echo "xcodegen: not installed"; fi
