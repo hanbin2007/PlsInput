@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-toolchain
@@ -53,7 +53,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-toolchain
@@ -93,7 +93,7 @@ jobs:
           ls -lh "${SCHEME}-sim.tar.gz"
 
       - name: Upload app artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plsinput-sim-app
           path: PlsInput-sim.tar.gz
@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload build log
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: xcodebuild-log
           path: .build/xcodebuild.log
@@ -115,7 +115,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup toolchain
         uses: ./.github/actions/setup-toolchain
@@ -186,7 +186,7 @@ jobs:
 
       - name: Upload bot report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plsbot-report
           path: |
@@ -204,7 +204,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Download app artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: plsinput-sim-app
 
@@ -270,7 +270,7 @@ jobs:
 
       - name: Upload screenshot
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sim-smoke-screenshot
           path: artifacts/smoke.png
