@@ -110,6 +110,8 @@ Profile: cn.origenclub.plsinput` 之类的文件。真正"完全不碰 Apple"的
 | `DIST_CERT_PASSWORD` | 导出 `.p12` 时设的密码 |
 
 五个缺任何一个，流水线自动退化成不签名 dry run（绿灯，但不上传）。
+**五个都配齐了也不代表就会签名**——ref 不可信（不是 tag、也不是 `refs/heads/main`）时
+一样退化，见第一节「什么情况下才真的签名、真的上传」。
 
 ### 1. 建 App Store Connect API key
 
