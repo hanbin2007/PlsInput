@@ -45,8 +45,12 @@ ssh root@kn.origenclub.cn 'bash /root/plsinput-setup/setup-plsinput-hosting.sh /
 - `step 7/8` 插入 `location /plsinput/` 之后必须看到 `nginx -t passed; reloading`。
   万一 `nginx -t` 失败，脚本会自动用 `/opt/ops/change-records/<时间戳>-kn-site.conf.orig`
   还原并复验，**不会** reload 坏配置。
-- `step 8/8` 三行健康检查，此刻正常结果是 `/` = 200、`/healthz` = 200、
-  `/plsinput/config.json` = **404**（还没发过配置，正常）。
+- `step 8/8` 三行健康检查：
+  - `/` 必须是 **200**，不是就直接报错退出（主站不健康，什么都别发）。
+  - `/plsinput/config.json` 必须是 **200 或 404**，别的码报错退出。
+    首次安装时是 404（还没发过配置）；**换 key 或任何一次重跑**时应该是 200
+    （线上已经有配置了）。
+  - `/healthz` 只打印不判断——这台机器上它目前返回 **404**，而且它不归本项目管。
 - 若出现 `WARN: sshd restricts logins with AllowUsers ...`，说明 sshd 白名单里没有 `plsinput`，
   部署 key 会被拒。脚本只警告不改 sshd，按它打印的提示手工加上 `plsinput` 再
   `sshd -t && systemctl reload ssh`。
@@ -74,10 +78,24 @@ diff <(curl -fsS https://kn.origenclub.cn/plsinput/config.json) remote/config.js
 ## 第 4 步：负面测试，确认坏数据发不上去
 
 ```sh
+# 1. 半个 JSON
 echo '{' | ssh -i ~/.ssh/plsinput_deploy plsinput@kn.origenclub.cn
+#    → receive-config: payload is not valid JSON
+
+# 2. 两份拼接的文档（每一份自己都合法，合起来不是一份配置）
+printf '%s' '{"schemaVersion":1}{"schemaVersion":1}' | ssh -i ~/.ssh/plsinput_deploy plsinput@kn.origenclub.cn
+#    → receive-config: payload must be exactly one JSON object
+
+# 3. 顶层缺 schemaVersion
+printf '%s' '{"configVersion":1}' | ssh -i ~/.ssh/plsinput_deploy plsinput@kn.origenclub.cn
+#    → receive-config: payload has no integer .schemaVersion
+
+# 4. 超过 1 MiB
+head -c 2000000 /dev/zero | tr '\0' 'x' | ssh -i ~/.ssh/plsinput_deploy plsinput@kn.origenclub.cn
+#    → receive-config: payload must be smaller than 1048576 bytes (too large, or truncated)
 ```
 
-必须失败，输出 `receive-config: payload is not valid JSON`，退出码非零。
+四条都必须失败、退出码非零。
 然后再确认线上文件**没被动过**：
 
 ```sh
@@ -98,18 +116,27 @@ ssh -n -i ~/.ssh/plsinput_deploy plsinput@kn.origenclub.cn id
 
 ```sh
 gh secret set KN_DEPLOY_SSH_KEY < ~/.ssh/plsinput_deploy
-ssh-keyscan -t ed25519 kn.origenclub.cn | gh secret set KN_DEPLOY_KNOWN_HOSTS
 ```
 
-`ssh-keyscan` 是**无认证**抓取，会被中间人骗。存进去之前把指纹和本机
-`known_hosts` 里已经验证过的那条对一下：
+主机公钥那条要小心：`ssh-keyscan` 是**无认证**抓取，会被中间人骗。
+所以必须**只抓一次、存成文件**，核对的和写进 secret 的是同一份字节；
+抓一次核对、再抓一次写 secret 的话，第二次完全可以是另一把伪造的 key。
 
 ```sh
-ssh-keygen -lf <(ssh-keyscan -t ed25519 kn.origenclub.cn 2>/dev/null)
+# 1. 抓一次，落到文件
+ssh-keyscan -t ed25519 kn.origenclub.cn > /tmp/kn_known_hosts
+
+# 2. 核对这份文件的指纹和本机 known_hosts 里已验证过的那条是否一致
+ssh-keygen -lf /tmp/kn_known_hosts     # 刚抓到的这份
 ssh-keygen -lF kn.origenclub.cn        # 本机已知的那条，两者指纹必须一致
+
+# 3. 一致才把**同一个文件**写进 secret
+gh secret set KN_DEPLOY_KNOWN_HOSTS < /tmp/kn_known_hosts
+rm -f /tmp/kn_known_hosts
 ```
 
-不一致就停下，别写 secret。
+不一致就停下，别写 secret。本机 `known_hosts` 里也没有这台机器时，
+先用一次你信得过的通道（比如云厂商控制台的 VNC）把指纹核出来。
 
 两个 secret 都设好之前，workflow 会走「跳过」分支（绿灯但不部署），所以先合并再配 secret 也是安全的。
 
@@ -117,8 +144,13 @@ ssh-keygen -lF kn.origenclub.cn        # 本机已知的那条，两者指纹必
 
 ```sh
 gh workflow run config.yml
-gh run watch --exit-status
+sleep 5        # 给 GitHub 一点时间把 run 建出来，否则下一条会列到上一次的 run
+gh run list --workflow config.yml --event workflow_dispatch --limit 1
+gh run watch "$(gh run list --workflow config.yml --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
 ```
+
+（不要用光秃秃的 `gh run watch`：它会去盯**最近的任意一次 run**，很可能是别的
+workflow、甚至是刚才 push 触发的那条，看着绿了其实盯错了对象。）
 
 绿灯后 Summary 里会有一行
 `deployed remote/config.json to https://kn.origenclub.cn/plsinput/config.json (served copy matches the repo)`。
@@ -131,16 +163,30 @@ workflow 自己会 `curl` 回读并和仓库文件 `diff`，所以绿灯 = 线�
 改 `remote/config.json` → 合进 `main` → workflow 自动跑。
 手工触发用 `gh workflow run config.yml`。
 
+workflow 的触发条件只有两个，别的什么都不会触发它：
+
+- push 到 `main`，且本次 push 改到了 `remote/config.json` 或 `.github/workflows/config.yml`；
+- 手工 `gh workflow run config.yml`（`workflow_dispatch`）。
+
+跑起来之后先过 `validate`（macOS，跑 `scripts/ci/config-gate.sh`，整份 `RemoteConfig`
+解码 + 平衡门禁 + 未来生效档全过一遍），过了才轮到 `deploy` 真正 ssh 推上去。
+
 ⚠️ 发新平衡参数时 `applyFrom` 至少设成**明天**，否则当天玩家会拿到不同的题。
+门禁会替未来的 `applyFrom` 也跑一遍机器人，所以坏参数在生效之前就会被拦下。
 
 ## 回滚
 
 三种方式，按手边方便挑：
 
 1. **改回去再发**：把 `remote/config.json` 恢复成上一版，提交进 `main`，workflow 自动发。最干净，仓库和线上始终一致。
-2. **用旧 ref 手工触发**：`gh workflow run config.yml --ref <旧 tag 或 commit>`。
-   注意这会让线上内容和 `main` 不一致，事后必须把 `main` 也改回去，否则下次任何一次 push 都会把它顶掉。
-3. **绕过 GitHub 直接发**（GitHub 挂了或急）：
+2. **用旧 ref 手工触发**：`gh workflow run config.yml --ref <分支名或 tag>`。
+   ⚠️ `--ref` **只接受分支名或 tag 名，不接受 commit SHA**——GitHub 的
+   workflow dispatch API 要的是一个 ref，给 SHA 会直接报错。想发某个任意 commit 的配置，
+   用下面第 3 条。
+   这么做会让线上内容和 `main` 不一致，事后必须把 `main` 也改回去，否则**下一次 push 到
+   `main` 且改到 `remote/config.json` 或 `.github/workflows/config.yml`（或者任何一次手工
+   `gh workflow run config.yml`）**都会把它顶掉。
+3. **绕过 GitHub 直接发**（GitHub 挂了、或者要发某个任意 commit 的版本）：
    ```sh
    git show <旧commit>:remote/config.json | ssh -i ~/.ssh/plsinput_deploy plsinput@kn.origenclub.cn
    ```
@@ -150,17 +196,34 @@ workflow 自己会 `curl` 回读并和仓库文件 `diff`，所以绿灯 = 线�
 
 ## 换 key（轮换 / 泄漏）
 
+setup 脚本是从**它自己所在的目录**取 `receive-config.sh` 的，所以两个脚本要一起传上去，
+不能只传公钥——否则服务器上装的还是上一版接收器。
+
 ```sh
 ssh-keygen -t ed25519 -N "" -C "github-actions plsinput config deploy" -f ~/.ssh/plsinput_deploy_new
-scp ~/.ssh/plsinput_deploy_new.pub root@kn.origenclub.cn:/root/plsinput-setup/
+scp ops/server/*.sh ~/.ssh/plsinput_deploy_new.pub root@kn.origenclub.cn:/root/plsinput-setup/
 ssh root@kn.origenclub.cn 'bash /root/plsinput-setup/setup-plsinput-hosting.sh /root/plsinput-setup/plsinput_deploy_new.pub'
 gh secret set KN_DEPLOY_SSH_KEY < ~/.ssh/plsinput_deploy_new
-gh workflow run config.yml && gh run watch --exit-status
+gh workflow run config.yml
+sleep 5
+gh run watch "$(gh run list --workflow config.yml --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
 ```
 
+换 key 是在**已经发过配置之后**做的，所以这次跑脚本时 `step 8/8` 那行
+`/plsinput/config.json` 应该是 **200**（不是首次安装的 404）。看到 404 反而说明出事了：
+要么线上文件被删了，要么 nginx 的 location 丢了。
+
 `authorized_keys` 是**整文件覆盖**，只保留传进去的那一把——新 key 生效的同时旧 key 立即失效，
-不需要额外的吊销步骤。确认绿灯后删掉本地旧私钥
-（`rm ~/.ssh/plsinput_deploy*`，然后把 new 改名回来）。
+不需要额外的吊销步骤。
+
+确认绿灯后再清理本地私钥。**按名字逐个删，不要用通配符**：
+`rm ~/.ssh/plsinput_deploy*` 会把刚生成的 `_new` 一起删掉，那你就既没有旧 key 也没有新 key 了。
+
+```sh
+rm -f ~/.ssh/plsinput_deploy ~/.ssh/plsinput_deploy.pub
+mv ~/.ssh/plsinput_deploy_new     ~/.ssh/plsinput_deploy
+mv ~/.ssh/plsinput_deploy_new.pub ~/.ssh/plsinput_deploy.pub
+```
 
 怀疑私钥泄漏时，在轮换前先看一眼有没有被用过：
 
@@ -170,7 +233,8 @@ ssh root@kn.origenclub.cn "grep -a plsinput /var/log/auth.log | tail -50"
 
 ## 这把 key 能做什么、不能做什么
 
-**能**：往 `/opt/plsinput/www/config.json` 写一份 ≤ 1 MiB、且 `schemaVersion` 是整数的合法 JSON。仅此一件事。
+**能**：往 `/opt/plsinput/www/config.json` 写一份**小于 1 MiB**、且顶层是一个
+`schemaVersion` 为整数的 JSON 对象。仅此一件事。
 
 **不能**：
 
@@ -178,9 +242,16 @@ ssh root@kn.origenclub.cn "grep -a plsinput /var/log/auth.log | tail -50"
   `/opt/plsinput/bin/receive-config`；客户端请求的命令只出现在 `SSH_ORIGINAL_COMMAND`，
   接收器显式 `unset` 它，绝不解析、绝不执行。
 - 不能开端口转发、X11、agent 转发、PTY——`restrict` 一次性全关。
+- 不能换掉自己的 `authorized_keys`：`/opt/plsinput`、`/opt/plsinput/.ssh`、
+  `authorized_keys` 全是 root 拥有（755/755/644），`plsinput` 只能读。
+  唯一归 `plsinput` 的目录就是 `www`。
 - 不能写 `/opt/plsinput/www` 以外的任何地方；`receive-config` 是 root:root 0755，
   `plsinput` 用户改不了它。
 - 不能碰主站：主站静态根是 `/opt/kungkingkao-site/current`（每次发布换软链），
   和本方案完全无交集。
 - 不能上传坏 JSON：校验在**替换之前**做，失败就删临时文件、非零退出，线上文件不动。
-- 不能撑爆磁盘：stdin 上限 1 MiB，且永远只有一个 `config.json`，不累积历史。
+  多份拼接的 JSON 文档（`{...}{...}`）也会被拒。
+- 不能撑爆磁盘：stdin 小于 1 MiB（正好顶到 1 MiB 也算失败，可能是被截断的），
+  且永远只有一个 `config.json`，不累积历史；上传串行（`.receive.lock` 上的非阻塞锁，
+  拿不到就报 `another upload in progress` 退出），读 stdin 最多 30 秒，
+  残留的临时文件一小时后由下一次上传顺手清掉。
